@@ -81,6 +81,21 @@
       #0f1218;
   }
 </style>
+  <style id="nl-toolbar-only-fixcss">
+/* ---- v0.7既存UIを壊さず、重なり/はみ出しのみ抑制 ---- */
+:root { --nl-green:#22c55e; }
+.nl-gear-open { box-shadow:0 0 0 2px var(--nl-green) inset !important; } /* ギアが開いてる間だけ緑枠 */
+
+ /* ツールバー/サイドバーが重なる環境だけ穏当に広げる */
+.topbar,.toolbar { display:flex; flex-wrap:nowrap; gap:.5rem; overflow-x:auto; overflow-y:hidden; }
+.topbar > *, .toolbar > * { flex:0 0 auto; }
+
+.sidebar { display:flex; flex-direction:column; gap:.5rem; }
+.sidebar button, .toolbar button { min-width:40px; min-height:40px; }
+
+ /* パネルのチラ見え防止（既存UIには影響なし） */
+[hidden]{ display:none !important; }
+</style>
 </head>
 <body>
   <div class="app">
@@ -355,4 +370,144 @@ function init(){ setTool('pen'); fitCanvas(); applyView(); updatePenLabel(); upd
 init();
 </script>
 </body>
+  <script id="nl-toolbar-only-fixjs">
+(function(){
+  // ------- ユーティリティ（既存ID/クラス名が違っても拾う） -------
+  const $ = (s,sc=document)=>sc.querySelector(s);
+  const $$ = (s,sc=document)=>Array.from(sc.querySelectorAll(s));
+  const pick = (arr)=>arr.find(Boolean);
+  // 候補のどれかが居たら採用するセレクタ
+  function anySel(list){ for(const s of list){ const el=$(s); if(el) return el; } return null; }
+  function byText(root,tag,text){
+    const els = $$(tag,root);
+    return els.find(e => (e.textContent||"").trim().includes(text));
+  }
+
+  // ------- 既存DOMから対象を“探して”つなぐ -------
+  const gearBtn = anySel([
+    '#settingsBtn','#btn_settings','#gearBtn','button[aria-controls*="settings"]','button[title*="設定"]'
+  ]);
+  const kbdBtn = anySel([
+    '#kbdBtn','#btn_keyboard','button[aria-controls*="kbd"]','button[title*="キーボード"]'
+  ]);
+
+  // パネルはID優先→ロール/文言で推定
+  let settingsPanel = anySel(['#settingsPanel','#panel_settings','[data-panel="settings"]']);
+  let kbdPanel      = anySel(['#kbdPanel','#panel_kbd','[data-panel="kbd"]']);
+  settingsPanel = settingsPanel || byText(document,'div','設定') || byText(document,'dialog','設定');
+  kbdPanel      = kbdPanel      || byText(document,'div','キーボード') || byText(document,'dialog','キーボード');
+
+  // ラベル（mm/pt 併記、存在しなければ自動生成）
+  const penSize = anySel(['#penSize','input[name="penSize"]','input[type="range"][id*="pen"]']);
+  let penSizeLabel = anySel(['#penSizeLabel','[data-role="penSizeLabel"]']);
+  if (!penSizeLabel && settingsPanel){
+    penSizeLabel = document.createElement('div');
+    penSizeLabel.id = 'penSizeLabel';
+    penSizeLabel.style.marginTop = '8px';
+    settingsPanel.appendChild(penSizeLabel);
+  }
+  const fontSize = anySel(['#fontSize','input[name="fontSize"]','input[type="range"][id*="font"]']);
+  let fontSizeLabel = anySel(['#fontSizeLabel','[data-role="fontSizeLabel"]']);
+  if (!fontSizeLabel && kbdPanel){
+    fontSizeLabel = document.createElement('div');
+    fontSizeLabel.id = 'fontSizeLabel';
+    fontSizeLabel.style.marginTop = '8px';
+    kbdPanel.appendChild(fontSizeLabel);
+  }
+  const cssDPI = 96;
+  const px2mm = px => px*25.4/cssDPI;
+  function updatePenLabel(){
+    if (!penSize || !penSizeLabel) return;
+    const v = parseFloat(penSize.value || '2');
+    penSizeLabel.textContent = `${v.toFixed(1)} px（${px2mm(v).toFixed(2)} mm）`;
+  }
+  function updateFontLabel(){
+    if (!fontSize || !fontSizeLabel) return;
+    const pt = parseInt(fontSize.value || '14', 10);
+    const px = pt * cssDPI / 72;
+    fontSizeLabel.textContent = `${pt} pt（${px.toFixed(1)} px）`;
+  }
+  penSize && penSize.addEventListener('input', updatePenLabel, {passive:true});
+  fontSize && fontSize.addEventListener('input', updateFontLabel, {passive:true});
+  updatePenLabel(); updateFontLabel();
+
+  // ------- トグル：外側タップで閉じない（キャプチャでブロック） -------
+  function openPanel(btn,panel){
+    if (!btn || !panel) return;
+    btn.classList.add('nl-gear-open');
+    btn.setAttribute('aria-pressed','true');
+    panel.hidden = false;
+  }
+  function closePanel(btn,panel){
+    if (!btn || !panel) return;
+    btn.classList.remove('nl-gear-open');
+    btn.setAttribute('aria-pressed','false');
+    panel.hidden = true;
+  }
+  function togglePanel(btn,panel){
+    if (!btn || !panel) return;
+    const isOpen = btn.getAttribute('aria-pressed') === 'true' || !panel.hidden;
+    isOpen ? closePanel(btn,panel) : openPanel(btn,panel);
+  }
+
+  // 既存の「外側クリックで閉じる」系を**上書きで無効化**
+  // （キャプチャ段階で止める：他スクリプトより先に通る）
+  let preventOutside = false;
+  document.addEventListener('click', (e)=>{
+    if (!preventOutside) return;
+    // 設定/キーボードの外側クリックは**閉じさせない**
+    if (settingsPanel && !settingsPanel.hidden && !settingsPanel.contains(e.target) && gearBtn && !gearBtn.contains(e.target)) {
+      e.stopImmediatePropagation(); e.preventDefault();
+    }
+    if (kbdPanel && !kbdPanel.hidden && !kbdPanel.contains(e.target) && kbdBtn && !kbdBtn.contains(e.target)) {
+      e.stopImmediatePropagation(); e.preventDefault();
+    }
+  }, true); // ← capture
+
+  // ボタン配線（存在するものだけ）
+  if (gearBtn && settingsPanel){
+    // パネル内クリックは外に伝えない（既存close防止の保険）
+    ['click','mousedown','touchstart','pointerdown'].forEach(t=>{
+      settingsPanel.addEventListener(t, ev=>ev.stopPropagation(), {passive:true});
+    });
+    gearBtn.addEventListener('click', ()=>{
+      preventOutside = true;               // ← 外側タップ無効化をON
+      togglePanel(gearBtn, settingsPanel);
+    });
+  }
+  if (kbdBtn && kbdPanel){
+    ['click','mousedown','touchstart','pointerdown'].forEach(t=>{
+      kbdPanel.addEventListener(t, ev=>ev.stopPropagation(), {passive:true});
+    });
+    kbdBtn.addEventListener('click', ()=>{
+      preventOutside = true;
+      togglePanel(kbdBtn, kbdPanel);
+    });
+  }
+
+  // 明示的な「閉じる」ボタンがある場合は尊重（外側では閉じないが、ここは閉じる）
+  const closeSettings = anySel(['#settingsClose','button.close-settings','.btn-close-settings']);
+  closeSettings && closeSettings.addEventListener('click', ()=>closePanel(gearBtn, settingsPanel));
+
+  const closeKbd = anySel(['#kbdClose','button.close-kbd','.btn-close-kbd']);
+  closeKbd && closeKbd.addEventListener('click', ()=>closePanel(kbdBtn, kbdPanel));
+
+  // ------- アイコン重なりの最終保険（レイアウトは変えない） -------
+  // ボタンが可視境界をはみ出す場合のみ、スクロール可能にする
+  const bar = anySel(['.topbar','.toolbar','header[role="toolbar"]']);
+  if (bar) {
+    const ro = new ResizeObserver(()=>{
+      if (bar.scrollWidth > bar.clientWidth) {
+        bar.style.overflowX = 'auto';
+        bar.style.whiteSpace = 'nowrap';
+      }
+    });
+    ro.observe(bar);
+  }
+
+  // 初期状態を“閉じてる”で統一
+  if (gearBtn && settingsPanel){ closePanel(gearBtn, settingsPanel); }
+  if (kbdBtn && kbdPanel){ closePanel(kbdBtn, kbdPanel); }
+})();
+</script>
 </html>
