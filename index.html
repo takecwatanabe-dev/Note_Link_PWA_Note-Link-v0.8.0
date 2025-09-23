@@ -135,7 +135,7 @@ header.topbar{
   <div class="handle" id="panelHandle" data-tip="ドラッグで移動">
     <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
     <div id="panelTool">-</div>
-    <button class="close" id="panelClose">閉じる</button>
+    <button class="close" id="panelClose" aria-label="閉じる" title="閉じる">×</button>
   </div>
   <div class="row"><label>色</label><input type="color" id="uiColor" value="#cbe58a"></div>
   <div class="row"><label>太さ</label><input type="range" min="1" max="60" value="4" id="uiSize"><span id="uiSizeVal">4px</span></div>
@@ -481,4 +481,37 @@ function init(){
 }
 init();
 </script>
+ <script>
+/* 設定パネルの閉じる（×）を“必ず”効かせるための結線パッチ */
+(() => {
+  const panel    = document.querySelector('#panel');
+  const closeBtn = document.querySelector('#panelClose');
+
+  if (!panel || !closeBtn) return; // もし見つからなければ何もしない
+
+  // 共通ハンドラ：確実に閉じる→ギアの緑枠もOFF
+  const handleClose = (e) => {
+    e.preventDefault();
+    // 他のリスナが邪魔しても通す
+    try { e.stopImmediatePropagation(); } catch {}
+    panel.classList.remove('show');
+    document.querySelectorAll('.tool[data-tool="settings"]').forEach(b => b.classList.remove('active'));
+  };
+
+  // クリックだけでなく pointer/touch も拾う。キャプチャ段階で先に反応。
+  ['click', 'pointerup', 'touchend'].forEach(type => {
+    closeBtn.addEventListener(type, handleClose, { capture: true });
+  });
+})();
+</script>
+ 
 </body></html>
+<style id="patch-tooltip-settings">
+/* 設定ボタンだけ、ツールチップを「右下」にずらしてパネルの見出しと重ならないようにする */
+.sidebar .tool[data-tool="settings"][data-tip]::after{
+  left: 56px;                 /* サイドバー幅ぶん右へ（はみ出し防止） */
+  top: calc(100% + 8px);      /* ボタンの下に出す */
+  transform: none;            /* 既定の translateY(-50%) を無効化 */
+  translate: 0 0;             /* 念のためリセット */
+}
+</style>
