@@ -1,6 +1,6 @@
 <!doctype html><html lang="ja"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Note Link — v0.8.0-compat-02b-fix1</title>
+<title>Note Link — v0.8.0-compat-02b-fix2</title>
 <style>
 :root{
   --ink:#e6f1ff; --ink-dim:#9bd6e9; --bg:#0b1020;
@@ -12,7 +12,7 @@
 html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);
   font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Hiragino Kaku Gothic ProN",Meiryo,sans-serif}
 
-/* 固定ヘッダ（スクロールで隠れない） */
+/* 固定ヘッダ */
 header.topbar{
   position:fixed; top:0; left:0; right:0; z-index:2000;
   height:var(--topbar-h);
@@ -30,7 +30,7 @@ header.topbar{
 #stage{position:absolute; inset:var(--topbar-h) 0 0 0; padding-left:var(--toolbar-w)}
 #viewport{position:absolute; inset:0; transform-origin:0 0; transform:scale(var(--zoom));}
 
-/* サイドバー（幅は常に一定） */
+/* サイドバー（幅固定） */
 .sidebar{
   position:fixed; z-index:2500; left:0;
   top:var(--topbar-h); bottom:0; width:var(--toolbar-w);
@@ -48,25 +48,34 @@ header.topbar{
 .tool.active{outline:1px solid var(--ok)}
 .tool[data-tool="toggle"] svg{transition:transform .2s ease}
 .sidebar.collapsed .tool[data-tool="toggle"] svg{transform:rotate(180deg)}
-/* 閉時は中身だけ非表示（幅は不変） */
 .sidebar.collapsed .rail > .tool:not([data-tool="toggle"]){display:none}
 
-/* パネル：v0.7相当スケール（UI構成はそのまま） */
+/* パネル：高さは中身に追従、上限超えたら内部スクロール */
 .panel{
   position:absolute; z-index:2400; left:70px; top:calc(var(--topbar-h) + 10px);
   min-width:280px; max-width:300px; padding:8px 12px 10px; border-radius:14px; color:var(--ink);
   background:var(--panel); border:1px solid rgba(255,255,255,.14); box-shadow:var(--shadow);
   display:none; user-select:none;
+  max-height:calc(100vh - var(--topbar-h) - 24px); /* 画面に収める */
+  overflow:auto; overscroll-behavior:contain; scrollbar-gutter:stable;
 }
 .panel.show{display:block}
-.panel .handle{display:flex; align-items:center; gap:8px; margin:-4px -4px 6px; padding:6px;
-  border-radius:10px; cursor:grab; touch-action:none}
+/* タイトル行は常に見える（左寄せ） */
+.panel .handle{
+  position:sticky; top:0; z-index:1;
+  display:flex; align-items:center; gap:8px;
+  margin:-8px -12px 8px; padding:8px 12px;
+  background:var(--panel); border-bottom:1px solid rgba(255,255,255,.08);
+  border-top-left-radius:14px; border-top-right-radius:14px;
+  cursor:grab; touch-action:none;
+}
+#panelTool{flex:1; font-weight:600; font-size:14px; text-align:left}
 .panel .row{display:flex; align-items:center; gap:10px; margin:6px 0}
 .panel .row label{width:88px;font-size:12px;color:var(--ink-dim)}
 .panel .close{margin-left:auto;height:26px;padding:0 10px;border-radius:8px;
   border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:var(--ink);font-size:14px;line-height:1}
 
-/* 入力の幅感（ラベル分を引いて自然に詰める） */
+/* 入力の幅感 */
 .panel .row input[type="range"]{flex:1; min-width:120px}
 .panel .row select{max-width:84px}
 .panel .row button{height:26px;padding:0 8px;border-radius:8px;border:1px solid rgba(255,255,255,.18);
@@ -114,7 +123,7 @@ header.topbar{
   <button class="btn" id="btnPrint">印刷</button>
   <button class="btn" id="btnPng">PNG</button>
   <button class="btn" id="btnShare">共有</button>
-  <span class="build">build: compat-02b-fix1</span>
+  <span class="build">build: compat-02b-fix2</span>
 </header>
 
 <aside class="sidebar" id="sidebar">
@@ -185,35 +194,27 @@ header.topbar{
 </div></div>
 
 <script>
-/* ===== version display ===== */
-const APP_VERSION = "v0.8.0";
-const BUILD_ID    = "compat-02b-fix1";
+/* ===== version ===== */
+const APP_VERSION="v0.8.0", BUILD_ID="compat-02b-fix2";
+(topbar.querySelector('strong')||{}).textContent=`Note Link ${APP_VERSION} / No.13`;
+(document.querySelector('.build')||{}).textContent=`build: ${BUILD_ID}`;
+document.title=`Note Link — ${APP_VERSION}-${BUILD_ID}`;
 
 /* ===== helpers ===== */
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const DPR=Math.max(1,devicePixelRatio||1);
-
 const topbar=$('#topbar'), sidebar=$('#sidebar'), panel=$('#panel');
 const cvGrid=$('#grid'), ctxGrid=cvGrid.getContext('2d');
 const cvGuide=$('#guide'), ctxGuide=cvGuide.getContext('2d');
 const cv=$('#paint'), ctx=cv.getContext('2d',{alpha:true});
 const textLayer=$('#textLayer'), viewport=$('#viewport');
 
-/* 表示中の表記を同期 */
-(topbar.querySelector('strong')||{}).textContent = `Note Link ${APP_VERSION} / No.13`;
-(document.querySelector('.build')||{}).textContent = `build: ${BUILD_ID}`;
-document.title = `Note Link — ${APP_VERSION}-${BUILD_ID}`;
-
-let W=0,H=0, zoom=1;
-let tool='pen';
+let W=0,H=0, zoom=1, tool='pen';
 const perTool={
   pen:{color:'#cbe58a',size:4,alpha:1,cap:'butt',straight:false},
   marker:{color:'#cbe58a',size:16,alpha:.4,cap:'butt',straight:false},
-  eraser:{size:24},
-  hand:{},
-  keyboard:{}
+  eraser:{size:24}, hand:{}, keyboard:{}
 };
-
 let color=perTool.pen.color, size=perTool.pen.size, alpha=1, cap='butt';
 let straightToggle=false, straightKey=false, gridOn=false, gridStepMM=10, gridColor='#3a4f7a', gridFirst=false;
 
@@ -245,22 +246,10 @@ addEventListener('orientationchange', ()=>setTimeout(resize,50));
 document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) setTimeout(resize,50); });
 
 /* ===== toolbar ===== */
-function saveToolState(k){
-  const p=perTool[k]||(perTool[k]={});
-  if(typeof color!=='undefined') p.color=color;
-  if(typeof size!=='undefined')  p.size=size;
-  if(typeof alpha!=='undefined') p.alpha=alpha;
-  if(typeof cap!=='undefined')   p.cap=cap;
-  p.straight = !!straightToggle;
-}
-function loadToolState(k){
-  const p=perTool[k]||{};
-  if('color' in p)   color=p.color;
-  if('size' in p)    size=p.size;
-  if('alpha' in p)   alpha=p.alpha;
-  if('cap' in p)     cap=p.cap;
-  if('straight' in p)straightToggle=p.straight; else straightToggle=false;
-}
+function saveToolState(k){ const p=perTool[k]||(perTool[k]={});
+  if(color!=null) p.color=color; if(size!=null) p.size=size; if(alpha!=null) p.alpha=alpha; if(cap!=null) p.cap=cap; p.straight=!!straightToggle; }
+function loadToolState(k){ const p=perTool[k]||{};
+  if('color' in p) color=p.color; if('size' in p) size=p.size; if('alpha' in p) alpha=p.alpha; if('cap' in p) cap=p.cap; straightToggle=!!p.straight; }
 function setActiveTool(t){
   const prev=tool; saveToolState(prev);
   tool=t; loadToolState(t);
@@ -275,12 +264,8 @@ function setActiveTool(t){
 
   syncUI();
 }
-
-/* △▽ 開閉（単一結線） */
 function toggleSidebar(){ sidebar.classList.toggle('collapsed'); }
 $('#btnSidebarToggle').addEventListener('click', (e)=>{ e.stopPropagation(); toggleSidebar(); });
-
-/* ほかのツール */
 $$('.tool').forEach(btn=>{
   if(btn.id==='btnSidebarToggle') return;
   btn.addEventListener('click', (e)=>{
@@ -384,12 +369,7 @@ function hexA(hex,a){const m=/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(he
 function pt(e){ const r=cv.getBoundingClientRect(); return {x:(e.clientX-r.left)/zoom*DPR, y:(e.clientY-r.top)/zoom*DPR} }
 
 let drawing=false, startPt=null, panning=false, panStart=null;
-
-function snapToGrid(p){
-  if(!gridOn) return p;
-  const g=mmToPx(gridStepMM);
-  return { x:Math.round(p.x/g)*g, y:Math.round(p.y/g)*g };
-}
+function snapToGrid(p){ if(!gridOn) return p; const g=mmToPx(gridStepMM); return { x:Math.round(p.x/g)*g, y:Math.round(p.y/g)*g }; }
 function snapLine(p0,p1){
   if(gridFirst){ const a0=snapToGrid(p0), a1=snapToGrid(p1); return {x:a1.x,y:a1.y,ang:Math.atan2(a1.y-a0.y,a1.x-a0.x)}; }
   const dx=p1.x-p0.x, dy=p1.y-p0.y, step=Math.PI/12;
@@ -419,30 +399,31 @@ async function restore(snap){
 async function undo(){ if(!hist.length) return; const cur=snapshot(); const prev=hist.pop(); redoStack.push(cur); await restore(prev); }
 async function redo(){ const next=redoStack.pop(); if(!next) return; hist.push(snapshot()); await restore(next); }
 
-/* ==== pointer handlers ==== */
+/* ==== pointer ==== */
 cv.addEventListener('pointerdown', e=>{
   if(tool==='hand'){
-    panning=true; panStart={x:e.clientX,y:e.clientY, vx:parseFloat(getComputedStyle(viewport).translate.split(' ')[0])||0, vy:parseFloat(getComputedStyle(viewport).translate.split(' ')[1])||0}; return;
+    panning=true;
+    const tr=getComputedStyle(viewport).translate.split(' ');
+    panStart={x:e.clientX,y:e.clientY, vx:parseFloat(tr[0])||0, vy:parseFloat(tr[1])||0};
+    return;
   }
   e.preventDefault(); cv.setPointerCapture(e.pointerId);
-  setCtx(); let p=pt(e); const straight = (straightKey || $('#uiStraight').checked);
-  startPt = (gridFirst && straight) ? snapToGrid(p) : p;
+  setCtx(); let p=pt(e); const straight=(straightKey || $('#uiStraight').checked);
+  startPt=(gridFirst && straight)?snapToGrid(p):p;
   drawing=true; if(!straight){ ctx.beginPath(); ctx.moveTo(startPt.x,startPt.y); }
   pushHistory();
 },{passive:false});
 cv.addEventListener('pointermove', e=>{
   if(tool==='hand' && panning){
-    const prev = getComputedStyle(viewport).translate.split(' ');
-    const vx = parseFloat(prev[0])||0, vy = parseFloat(prev[1])||0;
-    viewport.style.translate = `${vx + (e.movementX)}px ${vy + (e.movementY)}px`;
+    const prev=getComputedStyle(viewport).translate.split(' ');
+    const vx=parseFloat(prev[0])||0, vy=parseFloat(prev[1])||0;
+    viewport.style.translate=`${vx + e.movementX}px ${vy + e.movementY}px`;
     return;
   }
   if(!drawing) return;
   let p=pt(e);
-  const straight = (straightKey || $('#uiStraight').checked);
-  if(!straight){
-    ctx.lineTo(p.x,p.y); ctx.stroke(); return;
-  }
+  const straight=(straightKey || $('#uiStraight').checked);
+  if(!straight){ ctx.lineTo(p.x,p.y); ctx.stroke(); return; }
   const sp=snapLine(startPt,p);
   clear(cvGuide);
   const g=ctxGuide; g.save(); g.lineCap=ctx.lineCap; g.lineWidth=(size||4)*DPR; g.strokeStyle='#7ec8ff';
@@ -452,7 +433,7 @@ cv.addEventListener('pointermove', e=>{
 cv.addEventListener('pointerup', e=>{
   if(tool==='hand' && panning){ panning=false; return; }
   if(!drawing){ clear(cvGuide); return; }
-  const straight = (straightKey || $('#uiStraight').checked);
+  const straight=(straightKey || $('#uiStraight').checked);
   if(straight){
     let p=pt(e); const sp=snapLine(startPt,p); setCtx();
     ctx.beginPath(); ctx.moveTo(startPt.x,startPt.y); ctx.lineTo(sp.x,sp.y); ctx.stroke();
@@ -484,7 +465,7 @@ $('#btnTextBoxDel').addEventListener('click',()=>{
   if(el) el.remove();
 });
 
-/* ==== PNG / Print / Share ==== */
+/* ==== export/print/share ==== */
 function composite(){
   const out=document.createElement('canvas'); out.width=cv.width; out.height=cv.height;
   const o=out.getContext('2d');
@@ -508,7 +489,7 @@ $('#btnShare').addEventListener('click',()=>{
   });
 });
 
-/* ==== Undo/Redo ==== */
+/* ==== undo/redo ==== */
 $('#btnUndo').addEventListener('click', async()=>{ await undo(); });
 $('#btnRedo').addEventListener('click', async()=>{ await redo(); });
 
