@@ -707,6 +707,295 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
 </script>
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover"
+  />
+  <title>Note Link – Toolbar Test</title>
+  <meta name="theme-color" content="#0a0a0a" />
+
+  <style>
+    :root{
+      --bg-900: #0a0a0a;
+      --bg-800: #1f1f1f;
+      --border-700: #3a3a3a;
+      --text-100: #f5f5f5;
+      --text-300: #d1d1d1;
+      --green-500: #22c55e;
+      --shadow: 0 10px 24px rgba(0,0,0,.35), 0 2px 8px rgba(0,0,0,.25);
+    }
+
+    /* Reset（最小限） */
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      color: var(--text-100);
+      background: var(--bg-900);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Noto Sans JP", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+      /* Androidのタップ最適化 */
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* レイアウト */
+    .app {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      height: 100%;
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+
+    /* ===== Toolbar ===== */
+    .toolbar {
+      position: relative;
+      z-index: 10;
+      width: 100%;
+      background: rgba(10,10,10,0.85);
+      border-bottom: 1px solid var(--border-700);
+      -webkit-backdrop-filter: blur(6px);
+      backdrop-filter: blur(6px);
+    }
+    .toolbar-row{
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px;
+      overflow-x: auto;         /* 横スクロールで重なり回避 */
+      white-space: nowrap;
+      scroll-behavior: smooth;
+    }
+    .tool-btn{
+      flex: 0 0 auto;           /* shrink防止で重なり回避 */
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--text-100);
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      transition: background .15s ease, border-color .15s ease, transform .02s ease;
+      user-select: none;
+    }
+    .tool-btn:active { transform: scale(0.98); }
+    .tool-btn:hover { background: #161616; }
+
+    .tool-btn.is-open{
+      border: 2px solid var(--green-500); /* 開いている間は緑枠 */
+    }
+
+    .icon{
+      width: 24px;
+      height: 24px;
+      display: block;
+    }
+
+    /* ===== 設定パネル ===== */
+    .settings-wrap{
+      position: relative;
+      flex: 0 0 auto;
+    }
+    .settings-panel{
+      position: absolute;
+      right: 0;
+      top: calc(100% + 8px);
+      width: 288px;
+      border-radius: 12px;
+      background: var(--bg-800);
+      border: 1px solid var(--border-700);
+      box-shadow: var(--shadow);
+      z-index: 50;
+    }
+    .settings-inner{
+      padding: 12px;
+    }
+    .settings-title{
+      margin: 0 0 6px 0;
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: #e7e7e7;
+    }
+    .settings-text{
+      font-size: 0.9rem;
+      color: var(--text-300);
+      line-height: 1.45;
+    }
+    .btn-close{
+      display: block;
+      width: 100%;
+      margin-top: 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border-700);
+      background: transparent;
+      color: var(--text-100);
+      padding: 10px 12px;
+      cursor: pointer;
+    }
+    .btn-close:hover{ background: #2a2a2a; }
+
+    /* ===== 作業領域（ダミー） ===== */
+    .workspace{
+      position: relative;
+      width: 100%;
+      height: 100%;
+      background:
+        radial-gradient(transparent 1px, rgba(255,255,255,0.04) 1px) 0 0/24px 24px,
+        radial-gradient(transparent 1px, rgba(255,255,255,0.03) 1px) 12px 12px/24px 24px;
+      outline: none;
+    }
+    .hint{
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      color: #cfcfcf;
+      font-size: 14px;
+      pointer-events: none;
+      text-align: center;
+      padding: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- ===== Toolbar ===== -->
+    <header class="toolbar" role="toolbar" aria-label="Note Link toolbar">
+      <div class="toolbar-row" id="toolbarRow">
+        <!-- 例：ペン -->
+        <button type="button" class="tool-btn" id="penBtn" title="ペン" aria-pressed="false">
+          <!-- Pen Icon -->
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25Zm18-11.5a1 1 0 0 0 0-1.41l-1.59-1.59a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75L21 5.75Z" fill="currentColor"/>
+          </svg>
+        </button>
+
+        <!-- 例：消しゴム -->
+        <button type="button" class="tool-btn" id="eraserBtn" title="消しゴム" aria-pressed="false">
+          <!-- Eraser Icon -->
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M16.24 3.56a2 2 0 0 1 2.83 0l1.37 1.37a2 2 0 0 1 0 2.83L9.66 18.54a2 2 0 0 1-1.41.59H5.41a2 2 0 0 1-1.41-.59l-1.37-1.37a2 2 0 0 1 0-2.83L16.24 3.56ZM4 20h16v2H4v-2Z" fill="currentColor"/>
+          </svg>
+        </button>
+
+        <!-- ===== 設定（トグル開閉／外側タップでは閉じない） ===== -->
+        <div class="settings-wrap" id="settingsWrap">
+          <button
+            type="button"
+            class="tool-btn"
+            id="settingsBtn"
+            title="設定"
+            aria-pressed="false"
+            aria-haspopup="dialog"
+            aria-controls="settingsPanel"
+          >
+            <!-- Gear Icon -->
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M12 8.5a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7Zm9.5 3.5a7.5 7.5 0 0 0-.1-1l2.1-1.6-2-3.5-2.5.5a7.7 7.7 0 0 0-1.7-1l-.4-2.6H9.1l-.4 2.6c-.6.2-1.1.6-1.7 1l-2.5-.5-2 3.5L4.6 11c0 .3-.1.7-.1 1s0 .7.1 1L2.5 14.6l2 3.5 2.5-.5c.5.4 1.1.8 1.7 1l.4 2.6h5.1l.4-2.6c.6-.2 1.2-.6 1.7-1l2.5.5 2-3.5-2.1-1.6c.1-.3.1-.7.1-1Z" fill="currentColor"/>
+            </svg>
+          </button>
+
+          <div
+            class="settings-panel"
+            id="settingsPanel"
+            role="dialog"
+            aria-modal="false"
+            aria-label="設定"
+            hidden
+          >
+            <div class="settings-inner"
+                 onclick="event.stopPropagation()"
+                 onmousedown="event.stopPropagation()"
+                 ontouchstart="event.stopPropagation()">
+              <h3 class="settings-title">設定</h3>
+              <div class="settings-text">
+                ここにペンの太さ/色、キーボード設定などを配置します。<br/>
+                ※外側タップでは閉じません（仕様）。
+              </div>
+
+              <button type="button" class="btn-close" id="btnExplicitClose">閉じる</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 必要に応じて他のアイコンを追加（すべて .tool-btn / .icon を適用） -->
+        <!-- ... -->
+      </div>
+    </header>
+
+    <!-- ===== Workspace（ダミー領域） ===== -->
+    <main class="workspace" id="workspace" tabindex="-1" aria-label="作業領域">
+      <div class="hint">
+        設定アイコンを5回連続でトグルしてテストしてください。<br/>
+        外側（この領域）をタップしてもパネルは閉じません。<br/>
+        右上の「閉じる」または設定アイコン再タップで閉じます。
+      </div>
+    </main>
+  </div>
+
+  <script>
+    (function(){
+      const settingsBtn = document.getElementById('settingsBtn');
+      const settingsPanel = document.getElementById('settingsPanel');
+      const explicitClose = document.getElementById('btnExplicitClose');
+
+      /** 現在の開閉状態を返す */
+      const isOpen = () => !settingsPanel.hasAttribute('hidden');
+
+      /** 表示更新（枠線/aria反映を含む） */
+      const render = (open) => {
+        if (open) {
+          settingsPanel.removeAttribute('hidden');
+          settingsBtn.classList.add('is-open');
+          settingsBtn.setAttribute('aria-pressed', 'true');
+        } else {
+          settingsPanel.setAttribute('hidden', '');
+          settingsBtn.classList.remove('is-open');
+          settingsBtn.setAttribute('aria-pressed', 'false');
+        }
+      };
+
+      /** トグル（クリックのみ。pointer/touchの多重発火を避ける） */
+      settingsBtn.addEventListener('click', () => {
+        render(!isOpen());
+      }, { passive: true });
+
+      /** 明示クローズボタンのみで閉じる（外側タップでは閉じない） */
+      explicitClose.addEventListener('click', () => render(false), { passive: true });
+
+      /** パネル内のイベントは親へ波及させない（安全側） */
+      ['click','mousedown','touchstart'].forEach(type => {
+        settingsPanel.addEventListener(type, e => e.stopPropagation(), { passive: true });
+      });
+
+      // 外側タップで閉じるロジックは **置かない**（仕様）
+      // Escで閉じる挙動も今回は無効（要求なし）。必要ならここで追加可能。
+
+      // 視覚テスト用：他ツール（ダミー）
+      const stableButtons = ['penBtn','eraserBtn'];
+      stableButtons.forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('click', () => {
+          // ダミーの押下フィードバック
+          el.classList.add('is-pressed-temp');
+          setTimeout(() => el.classList.remove('is-pressed-temp'), 120);
+        }, { passive: true });
+      });
+
+      // ユーザーの高速連打に対しても状態は単純トグルのみなので破綻しない設計
+    })();
+  </script>
+</body>
+</html>
 
 </head>
 <body>
