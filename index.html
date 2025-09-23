@@ -96,6 +96,22 @@
  /* パネルのチラ見え防止（既存UIには影響なし） */
 [hidden]{ display:none !important; }
 </style>
+  <style id="nl-v07-toolbar-patch-css">
+:root{--nl-green:#22c55e}
+ /* ギア/キーボードが開いている間の緑枠（UI据え置き） */
+.nl-open { box-shadow:0 0 0 2px var(--nl-green) inset !important }
+
+ /* はみ出し時だけ横スクロールを許可（崩さない） */
+.topbar, .toolbar, header[role="toolbar"]{ overflow-x:auto; overflow-y:hidden; white-space:nowrap }
+.topbar>* , .toolbar>* { flex:0 0 auto }
+
+ /* 透明の“盾”で外側タップを吸う（下は触れない＝閉じない） */
+#nl-modal-shield{
+  position:fixed; inset:0; background:transparent; z-index:999; display:none; pointer-events:auto;
+}
+#nl-modal-shield.on{ display:block }
+[hidden]{ display:none !important; } /* パネルのちら見え抑止（他影響なし） */
+</style>
 </head>
 <body>
   <div class="app">
@@ -511,3 +527,118 @@ init();
 })();
 </script>
 </html>
+<script id="nl-v07-toolbar-patch-js">
+(()=>{ "use strict";
+const $=(s,sc=document)=>sc.querySelector(s);
+const $$=(s,sc=document)=>Array.from(sc.querySelectorAll(s));
+const first=(...cands)=>cands.find(Boolean);
+
+/* ---------- 盾（外側タップ無効の決定版） ---------- */
+let shield = $("#nl-modal-shield");
+if(!shield){ shield = document.createElement("div"); shield.id="nl-modal-shield"; document.body.appendChild(shield); }
+["click","mousedown","pointerdown","touchstart"].forEach(t=>{
+  shield.addEventListener(t, e=>{ e.stopPropagation(); e.preventDefault(); }, {capture:true, passive:false});
+});
+
+/* ---------- 対象を“自動検出” ---------- */
+function findBtn(titleText, idCands=[], ctrlKey=""){
+  return first(
+    ...idCands.map(id=>$("#"+id)),
+    ...$$('button').filter(b=> (b.title||"").includes(titleText)),
+    ctrlKey ? $$('button').find(b=> (b.getAttribute("aria-controls")||"").includes(ctrlKey)) : null
+  );
+}
+function findPanel(idCands=[], labelText=""){
+  return first(
+    ...idCands.map(id=>$("#"+id)),
+    ...$$('div,dialog,section,aside').filter(p=> (p.id||"").toLowerCase().includes("panel") && (p.textContent||"").includes(labelText)),
+    ...$$(`[role="dialog"]`).filter(p=> (p.textContent||"").includes(labelText))
+  );
+}
+
+const gearBtn = findBtn("設定", ["settingsBtn","btn_settings","gearBtn"], "settings");
+const kbdBtn  = findBtn("キーボード", ["kbdBtn","btn_keyboard"], "kbd");
+
+let settingsPanel = findPanel(["settingsPanel","panel_settings"], "設定");
+let kbdPanel      = findPanel(["kbdPanel","panel_kbd"], "キーボード");
+
+/* パネル内は外へイベントを通さない（保険） */
+function swallowInside(panel){
+  ["click","mousedown","pointerdown","touchstart"].forEach(t=>{
+    panel.addEventListener(t, ev=>ev.stopPropagation(), {passive:true});
+  });
+}
+settingsPanel && swallowInside(settingsPanel);
+kbdPanel && swallowInside(kbdPanel);
+
+/* ---------- 開閉（外側タップでは閉じない） ---------- */
+function openPanel(btn,panel){
+  if(!btn||!panel) return;
+  btn.classList.add("nl-open");
+  btn.setAttribute("aria-pressed","true");
+  panel.hidden = false;
+  shield.classList.add("on"); // ← 外側は“盾”が受けるので閉じない
+}
+function closePanel(btn,panel){
+  if(!btn||!panel) return;
+  btn.classList.remove("nl-open");
+  btn.setAttribute("aria-pressed","false");
+  panel.hidden = true;
+  if(!(kbdBtn && !kbdPanel.hidden) && !(gearBtn && !settingsPanel.hidden)){
+    shield.classList.remove("on");
+  }
+}
+function togglePanel(btn,panel){
+  const open = (btn.getAttribute("aria-pressed")==="true") || (panel && panel.hidden===false);
+  open ? closePanel(btn,panel) : openPanel(btn,panel);
+}
+
+/* 配線（存在するものだけ） */
+gearBtn && settingsPanel && gearBtn.addEventListener("click", ()=>togglePanel(gearBtn,settingsPanel));
+kbdBtn  && kbdPanel      && kbdBtn .addEventListener("click", ()=>togglePanel(kbdBtn,kbdPanel));
+
+/* ---------- ラベル併記（px→mm / pt→px） ---------- */
+const cssDPI=96, px2mm=px=>px*25.4/cssDPI;
+function setupPxMm(panel){
+  if(!panel) return;
+  const rng = $("#penSize", panel) || $('input[type="range"]', panel);
+  if(!rng) return;
+  let label = $("#penSizeLabel", panel);
+  if(!label){ label=document.createElement("div"); label.id="penSizeLabel"; label.style.marginTop="8px"; panel.appendChild(label); }
+  const upd=()=>{ const v=parseFloat(rng.value||"2"); label.textContent=`${v.toFixed(1)} px（${px2mm(v).toFixed(2)} mm）`; };
+  rng.addEventListener("input", upd, {passive:true}); upd();
+}
+function setupPtPx(panel){
+  if(!panel) return;
+  const rng = $("#fontSize", panel) || $$('input[type="range"]', panel).find(el=>/font|文字サイズ/.test(el.id+el.name+panel.textContent));
+  if(!rng) return;
+  let label = $("#fontSizeLabel", panel);
+  if(!label){ label=document.createElement("div"); label.id="fontSizeLabel"; label.style.marginTop="8px"; panel.appendChild(label); }
+  const upd=()=>{ const pt=parseInt(rng.value||"14",10); const px=pt*cssDPI/72; label.textContent=`${pt} pt（${px.toFixed(1)} px）`; };
+  rng.addEventListener("input", upd, {passive:true}); upd();
+}
+setupPxMm(settingsPanel);
+setupPtPx(kbdPanel);
+
+/* ---------- はみ出し保険：計測して必要時のみ有効 ---------- */
+function guardOverflow(){
+  const bar = $(".topbar") || $(".toolbar") || $('header[role="toolbar"]');
+  if(!bar) return;
+  const need = bar.scrollWidth > bar.clientWidth + 2;
+  if(need){ bar.style.overflowX="auto"; bar.style.whiteSpace="nowrap"; }
+}
+new ResizeObserver(()=>guardOverflow()).observe(document.documentElement);
+guardOverflow();
+
+/* ---------- 初期状態：閉じる ---------- */
+if(gearBtn && settingsPanel){ closePanel(gearBtn, settingsPanel); }
+if(kbdBtn  && kbdPanel){     closePanel(kbdBtn , kbdPanel);     }
+
+/* ---------- パネルが動的再描画される実装への追従 ---------- */
+const mo = new MutationObserver(()=>{
+  if(!document.body.contains(settingsPanel)){ settingsPanel = findPanel(["settingsPanel","panel_settings"], "設定"); settingsPanel && swallowInside(settingsPanel); setupPxMm(settingsPanel); }
+  if(!document.body.contains(kbdPanel)){ kbdPanel = findPanel(["kbdPanel","panel_kbd"], "キーボード"); kbdPanel && swallowInside(kbdPanel); setupPtPx(kbdPanel); }
+});
+mo.observe(document.documentElement, {childList:true, subtree:true});
+})();
+</script>
