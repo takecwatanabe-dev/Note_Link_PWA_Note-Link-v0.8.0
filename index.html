@@ -1,18 +1,18 @@
 <!doctype html><html lang="ja"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Note Link mini — v0.7.0-mini-fix20e</title>
+<title>Note Link mini — v0.7.0-mini-fix20g</title>
 <style>
 :root{
   --ink:#e6f1ff; --ink-dim:#9bd6e9; --bg:#0b1020;
   --panel:#101827; --accent:#3f78ff;
   --ok:#20e3c2; --muted:#2a3550; --shadow:0 10px 24px rgba(0,0,0,.45);
-  --topbar-h:44px; --sidebar-top:44px; --toolbar-w:56px; --zoom:1;
+  --topbar-h:44px; --toolbar-w:56px; --zoom:1;
 }
 *{box-sizing:border-box}
 html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);
   font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Hiragino Kaku Gothic ProN",Meiryo,sans-serif}
 
-/* ★ 上部バーを固定 */
+/* 固定ヘッダ */
 header.topbar{
   position:fixed; top:0; left:0; right:0; z-index:2000;
   height:var(--topbar-h);
@@ -25,18 +25,17 @@ header.topbar{
   border:1px solid rgba(255,255,255,.22);color:#fff;display:inline-flex;align-items:center;gap:6px}
 .topbar .btn:active{transform:translateY(1px)} .build{opacity:.8}
 
-/* 固定ヘッダぶん下げるラッパー */
+/* レイアウト */
 #wrap{position:relative;height:100%; padding-top:var(--topbar-h)}
 #stage{position:absolute; inset:var(--topbar-h) 0 0 0; padding-left:var(--toolbar-w)}
 #viewport{position:absolute; inset:0; transform-origin:0 0; transform:scale(var(--zoom));}
 
-/* サイドバー：確実に最前面でクリック可 */
+/* サイドバー */
 .sidebar{
   position:fixed; z-index:2500; left:0;
   top:var(--topbar-h); bottom:0; width:var(--toolbar-w);
   display:flex; flex-direction:column; align-items:center;
   background:rgba(0,0,0,.86); box-shadow:0 0 0 1px var(--muted) inset;
-  pointer-events:auto;
 }
 .sidebar .rail{width:100%; padding:6px; display:flex; flex-direction:column; gap:8px}
 .tool{
@@ -44,7 +43,6 @@ header.topbar{
   background:rgba(22,26,38,.75); border:1px solid rgba(50,60,100,.6);
   outline:1px solid rgba(79,124,255,.35);
   box-shadow:0 0 0 2px rgba(0,0,0,.12);
-  pointer-events:auto;
 }
 .tool svg{width:18px;height:18px;stroke:var(--ink);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .tool:hover{outline:1px solid rgba(79,124,255,.5)}
@@ -52,8 +50,16 @@ header.topbar{
 .tool[data-tool="toggle"] svg{transition:transform .2s ease}
 .sidebar.collapsed .tool[data-tool="toggle"] svg{transform:rotate(180deg)}
 .sidebar.collapsed .rail > .tool:not([data-tool="toggle"]){display:none}
-.sidebar.collapsed{clip-path:inset(0 0 calc(100% - 45px) 0)}
 
+/* 開閉時：幅も連動（36px） */
+body.sidebar-collapsed .sidebar{ width:36px }
+body.sidebar-collapsed #stage{ padding-left:36px }
+body.sidebar-collapsed #grid,
+body.sidebar-collapsed #guide,
+body.sidebar-collapsed #paint,
+body.sidebar-collapsed .text-layer{ left:36px }
+
+/* パネル */
 .panel{
   position:absolute; z-index:2400; left:70px; top:calc(var(--topbar-h) + 10px);
   min-width:380px; padding:10px 14px 12px; border-radius:14px; color:var(--ink);
@@ -63,7 +69,6 @@ header.topbar{
 .panel.show{display:block}
 .panel .handle{display:flex; align-items:center; gap:8px; margin:-6px -6px 8px; padding:6px;
   border-radius:10px; cursor:grab; touch-action:none}
-.panel .handle svg{width:16px;height:16px;stroke:var(--ink-dim)}
 .panel .row{display:flex; align-items:center; gap:10px; margin:10px 0}
 .panel .row label{width:110px;font-size:12px;color:var(--ink-dim)}
 .panel .close{margin-left:auto;height:26px;padding:0 10px;border-radius:8px;
@@ -81,7 +86,7 @@ header.topbar{
 .note-text .del{position:absolute;right:-8px;top:-10px;font-size:11px;color:#fff;background:#0008;border:1px solid #fff3;border-radius:8px;padding:2px 6px;display:none}
 .note-text:focus-within .del{display:block}
 
-/* ツールチップ（設定だけはダイアログ外へ） */
+/* 設定ボタンのツールチップはダイアログ外（上方向） */
 [data-tip]{position:relative}
 [data-tip]::after{
   content:attr(data-tip);position:absolute;left:48px;top:50%;transform:translateY(-50%);
@@ -111,12 +116,12 @@ header.topbar{
   <button class="btn" id="btnPrint">印刷</button>
   <button class="btn" id="btnPng">PNG</button>
   <button class="btn" id="btnShare">共有</button>
-  <span class="build">build: mini-fix20e</span>
+  <span class="build">build: mini-fix20g</span>
 </header>
 
 <aside class="sidebar" id="sidebar">
   <div class="rail">
-    <button class="tool active" data-tool="toggle" data-tip="ツールバーの開閉">
+    <button class="tool" id="btnSidebarToggle" data-tool="toggle" data-tip="ツールバーの開閉">
       <svg viewBox="0 0 24 24"><path d="M5 15 L12 7 L19 15 M19 15 L5 15"/></svg>
     </button>
     <button class="tool" data-tool="pen" data-tip="ペン">
@@ -182,8 +187,10 @@ header.topbar{
 </div></div>
 
 <script>
+/* ===== helpers ===== */
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const DPR=Math.max(1,devicePixelRatio||1);
+
 const topbar=$('#topbar'), sidebar=$('#sidebar'), panel=$('#panel');
 const cvGrid=$('#grid'), ctxGrid=cvGrid.getContext('2d');
 const cvGuide=$('#guide'), ctxGuide=cvGuide.getContext('2d');
@@ -199,18 +206,16 @@ const perTool={ pen:{color:'#cbe58a',size:4,alpha:1,cap:'butt',straight:false},
 let color=perTool.pen.color, size=perTool.pen.size, alpha=1, cap='butt';
 let straightToggle=false, straightKey=false, gridOn=false, gridStepMM=10, gridColor='#3a4f7a', gridFirst=false;
 
+/* ===== layout ===== */
 function applyBars(){
   const h=Math.round(topbar.getBoundingClientRect().height)||44;
   document.documentElement.style.setProperty('--topbar-h', h+'px');
-  document.documentElement.style.setProperty('--sidebar-top', h+'px');
 }
-
-/* ===== 保持復元つきリサイズ ===== */
 let resizeLock=false;
 function resize(){
   if(resizeLock) return; resizeLock=true;
   const prevW=cv.width, prevH=cv.height;
-  const prevURL = (prevW && prevH) ? cv.toDataURL('image/png') : null;
+  const prevURL=(prevW&&prevH)?cv.toDataURL('image/png'):null;
 
   applyBars();
   const r=viewport.getBoundingClientRect();
@@ -221,24 +226,19 @@ function resize(){
   });
   drawGrid();
 
-  if(prevURL){
-    const img=new Image();
-    img.onload=()=>{ ctx.drawImage(img,0,0,prevW,prevH,0,0,cv.width,cv.height); resizeLock=false; };
-    img.src=prevURL;
-  }else{
-    resizeLock=false;
-  }
+  if(prevURL){ const img=new Image(); img.onload=()=>{ ctx.drawImage(img,0,0,prevW,prevH,0,0,cv.width,cv.height); resizeLock=false; }; img.src=prevURL; }
+  else resizeLock=false;
 }
 addEventListener('resize', resize);
 addEventListener('orientationchange', ()=>setTimeout(resize,50));
 document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) setTimeout(resize,50); });
 
-/* ==== toolbar ==== */
+/* ===== toolbar ===== */
 function setActiveTool(t){
   const prev=tool; perTool[prev] && Object.assign(perTool[prev], {color,size,alpha,cap,straight:straightToggle});
   tool=t; $$('.tool').forEach(b=>b.classList.toggle('active', b.dataset.tool===t));
   $('#panelTool').textContent=t;
-  if(perTool[t]){ ({color,size,alpha=alpha,cap=cap,straight:straightToggle=false} = Object.assign({alpha,cap,straight:false}, perTool[t])); }
+  if(perTool[t]){ ({color,size,alpha=alpha,cap=cap,straight:straightToggle=false}=Object.assign({alpha,cap,straight:false},perTool[t])); }
   $('#rowAlpha').style.display   = (t==='marker') ? '' : 'none';
   $('#rowLineCap').style.display = (t==='marker'||t==='pen') ? '' : 'none';
   $('#rowStraight').style.display= (t==='pen'||t==='marker') ? '' : 'none';
@@ -246,32 +246,37 @@ function setActiveTool(t){
   syncUI();
 }
 
-/* ★ 個別結線＋イベント委譲の二段構え（確実に反応させる） */
-$$('.tool').forEach(btn=>{
-  btn.addEventListener('click', ()=>handleTool(btn.dataset.tool));
-});
-document.addEventListener('click', (e)=>{
-  const b=e.target.closest('.tool'); if(!b) return;
-  handleTool(b.dataset.tool);
-});
-function handleTool(t){
-  if(t==='toggle'){ sidebar.classList.toggle('collapsed'); return; }
-  if(t==='settings'){
-    panel.classList.toggle('show');
-    $$('.tool[data-tool="settings"]').forEach(b=>b.classList.toggle('active', panel.classList.contains('show')));
-    return;
-  }
-  setActiveTool(t);
+/* △▽ 開閉：二重発火を**排除**（個別結線のみ） */
+function toggleSidebar(){
+  sidebar.classList.toggle('collapsed');
+  document.body.classList.toggle('sidebar-collapsed', sidebar.classList.contains('collapsed'));
 }
+$('#btnSidebarToggle').addEventListener('click', (e)=>{ e.stopPropagation(); toggleSidebar(); });
+$('#btnSidebarToggle').addEventListener('pointerdown', (e)=>{ e.stopPropagation(); }); // 保険
 
-/* ==== panel drag ==== */
+/* ほかのツール */
+$$('.tool').forEach(btn=>{
+  if(btn.id==='btnSidebarToggle') return; // すでに結線済み
+  btn.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    const t=btn.dataset.tool;
+    if(t==='settings'){
+      panel.classList.toggle('show');
+      $$('.tool[data-tool="settings"]').forEach(b=>b.classList.toggle('active', panel.classList.contains('show')));
+      return;
+    }
+    setActiveTool(t);
+  });
+});
+
+/* ==== panel drag & close ==== */
 (()=>{
   let id=null, sx=0,sy=0,ox=0,oy=0,drag=false;
   const handle=$('#panelHandle');
   function down(e){ drag=true; id=e.pointerId; panel.setPointerCapture(id);
     sx=e.clientX; sy=e.clientY; const r=panel.getBoundingClientRect(); ox=r.left; oy=r.top; e.preventDefault(); }
   function move(e){ if(!drag||e.pointerId!==id) return; const nx=ox+(e.clientX-sx), ny=oy+(e.clientY-sy);
-    panel.style.left=Math.max(56,nx)+'px';
+    panel.style.left=Math.max(36,nx)+'px';
     const top=parseInt(getComputedStyle(document.documentElement).getPropertyValue('--topbar-h'))+6;
     panel.style.top=Math.max(top,ny)+'px'; }
   function up(e){ if(e.pointerId!==id) return; drag=false; try{ panel.releasePointerCapture(id);}catch{} id=null; }
@@ -279,14 +284,10 @@ function handleTool(t){
   panel.addEventListener('pointermove',move,{passive:false});
   panel.addEventListener('pointerup',up,{passive:false});
   panel.addEventListener('pointercancel',up,{passive:false});
-
-  const closeBtn = $('#panelClose');
-  if(closeBtn){
-    closeBtn.addEventListener('click', ()=>{
-      panel.classList.remove('show');
-      $$('.tool[data-tool="settings"]').forEach(b=>b.classList.remove('active'));
-    });
-  }
+  $('#panelClose')?.addEventListener('click', ()=>{
+    panel.classList.remove('show');
+    $$('.tool[data-tool="settings"]').forEach(b=>b.classList.remove('active'));
+  });
 })();
 
 /* ==== panel inputs ==== */
@@ -294,7 +295,6 @@ const ui={ color:$('#uiColor'), size:$('#uiSize'), alpha:$('#uiAlpha'),
   sizeVal:$('#uiSizeVal'), alphaVal:$('#uiAlphaVal'), cap:$('#uiCap'),
   straight:$('#uiStraight'), gridFirst:$('#uiGridFirst'),
   gOn:$('#uiGrid'), gStep:$('#uiGridStep'), gColor:$('#uiGridColor') };
-
 function pxToMm(px){ return px*25.4/96; }
 function syncUI(){
   ui.color.value=color; ui.size.value=size; ui.sizeVal.textContent=`${size}px  (${pxToMm(size).toFixed(2)} mm)`;
@@ -393,7 +393,6 @@ cv.addEventListener('pointerdown', e=>{
   drawing=true; if(!(straightKey || $('#uiStraight').checked)){ ctx.beginPath(); ctx.moveTo(startPt.x,startPt.y); }
   pushHistory();
 },{passive:false});
-
 cv.addEventListener('pointermove', e=>{
   if(tool==='hand' && panning){
     const dx=e.clientX - panStart.x, dy=e.clientY - panStart.y;
@@ -411,7 +410,6 @@ cv.addEventListener('pointermove', e=>{
   g.setLineDash([6*DPR,6*DPR]); g.beginPath(); g.moveTo(startPt.x,startPt.y); g.lineTo(sp.x,sp.y); g.stroke(); g.restore();
   drawAngleHUD(sp,sp.ang);
 },{passive:false});
-
 cv.addEventListener('pointerup', e=>{
   if(tool==='hand' && panning){ panning=false; return; }
   if(!drawing){ clear(cvGuide); return; }
@@ -476,9 +474,14 @@ $('#btnRedo').addEventListener('click', async()=>{ await redo(); });
 
 /* ==== init ==== */
 function init(){
-  applyBars(); document.documentElement.style.setProperty('--zoom', zoom);
-  $('#btnZoomReset').textContent = '100%';
-  setTimeout(resize,0); setActiveTool('pen'); panel.classList.add('show');
+  applyBars();
+  document.documentElement.style.setProperty('--zoom', zoom);
+  $('#btnZoomReset').textContent='100%';
+  setTimeout(resize,0);
+  setActiveTool('pen');
+  /* ★ 起動時はパネルを閉じる（強制） */
+  panel.classList.remove('show');
+  $$('.tool[data-tool="settings"]').forEach(b=>b.classList.remove('active'));
 }
 init();
 </script>
