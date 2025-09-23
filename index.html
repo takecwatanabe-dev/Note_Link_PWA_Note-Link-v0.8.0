@@ -1,644 +1,484 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover" />
-<title>Note Link v0.7.2 / No.19</title>
-<meta name="theme-color" content="#0a0a0a" />
+<!doctype html><html lang="ja"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Note Link mini — v0.7.0-mini-fix20b</title>
 <style>
-  :root{
-    --bg:#0c0e12; --panel:#12151b; --ink:#e9eef5; --ink-2:#b9c2cf;
-    --blue:#5570ff; --green:#22c55e; --bd:#2a3140;
-    --sidebar-w:56px; --topbar-h:40px; --btn:40px; --icon:20px; --panel-w:320px;
-    --shadow:0 18px 40px rgba(0,0,0,.35),0 3px 10px rgba(0,0,0,.25);
-  }
-  *{box-sizing:border-box}
-  html,body{height:100%}
-  body{
-    margin:0; background:#0a0c10; color:var(--ink);
-    font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans JP",Arial,sans-serif;
-    -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
-    -webkit-tap-highlight-color:transparent;
-  }
-  [hidden]{display:none !important;}
-
-  /* ===== layout ===== */
-  .app{display:grid; grid-template-columns:var(--sidebar-w) 1fr; grid-template-rows:var(--topbar-h) 1fr; height:100vh;}
-  .sidebar{
-    grid-row:1 / span 2; grid-column:1; background:#0d1016; border-right:1px solid var(--bd); z-index:10;
-    display:flex; flex-direction:column; align-items:center; gap:8px; padding:8px 6px;
-  }
-  .topbar{
-    grid-row:1; grid-column:2; z-index:9;
-    background:linear-gradient(0deg, #3b59ff, #5c78ff); color:#fff;
-    border-bottom:1px solid rgba(0,0,0,.3);
-    display:flex; align-items:center; gap:8px; padding:6px 10px;
-  }
-  .title{font-weight:800; margin-right:auto}
-  .main{grid-row:2; grid-column:2; position:relative; background:#0f1218; overflow:hidden}
-
-  /* ===== buttons ===== */
-  .sbtn{
-    width:var(--btn); height:var(--btn); border-radius:12px;
-    background:#121722; border:1px solid var(--bd); color:var(--ink);
-    display:grid; place-items:center; cursor:pointer; user-select:none;
-    transition:background .12s, transform .02s, border-color .12s;
-  }
-  .sbtn:hover{background:#172033} .sbtn:active{transform:scale(.98)}
-  .sbtn[aria-pressed="true"]{outline:none}
-  .sbtn.is-open{box-shadow:0 0 0 2px var(--green) inset;}
-  .icon{width:var(--icon); height:var(--icon); display:block}
-
-  .tbtn{height:28px; min-width:40px; padding:0 10px; border-radius:8px;
-        background:rgba(255,255,255,.15); color:#fff; border:1px solid rgba(255,255,255,.25); cursor:pointer;}
-  .tbtn:hover{background:rgba(255,255,255,.25)}
-  .zoom{font-weight:800; min-width:64px; text-align:center}
-
-  /* ===== panels ===== */
-  .panel{
-    position:fixed; width:var(--panel-w); background:var(--panel); color:var(--ink);
-    border:1px solid var(--bd); border-radius:14px; box-shadow:var(--shadow); z-index:1000;
-  }
-  .p-inner{padding:14px}
-  .p-title{margin:0 0 10px 0; font-size:15px; font-weight:800}
-  .row{display:flex; align-items:center; justify-content:space-between; gap:10px; margin:8px 0}
-  .label{font-size:13px; color:var(--ink-2)}
-  input[type="range"]{width:64%}
-  .btn{display:block; width:100%; border-radius:10px; border:1px solid var(--bd); background:#171c27; color:var(--ink); padding:9px 10px; cursor:pointer}
-  .btn:hover{background:#1b2130}
-
-  /* ===== workspace & canvas ===== */
-  .workspace{position:absolute; inset:0; background:#0f1218; touch-action:none;} /* ← ページスクロール/ピンチ無効化 */
-  .viewport{position:absolute; left:0; top:0; transform-origin:0 0;}
-  canvas{position:absolute; left:0; top:0; display:block}
-  #overlay{pointer-events:none}
-
-  /* grid (visual only) */
-  .workspace.grid-on{
-    background:
-      linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px) 0 0/24px 24px,
-      linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px) 0 0/24px 24px,
-      #0f1218;
-  }
-</style>
-  <style id="nl-toolbar-only-fixcss">
-/* ---- v0.7既存UIを壊さず、重なり/はみ出しのみ抑制 ---- */
-:root { --nl-green:#22c55e; }
-.nl-gear-open { box-shadow:0 0 0 2px var(--nl-green) inset !important; } /* ギアが開いてる間だけ緑枠 */
-
- /* ツールバー/サイドバーが重なる環境だけ穏当に広げる */
-.topbar,.toolbar { display:flex; flex-wrap:nowrap; gap:.5rem; overflow-x:auto; overflow-y:hidden; }
-.topbar > *, .toolbar > * { flex:0 0 auto; }
-
-.sidebar { display:flex; flex-direction:column; gap:.5rem; }
-.sidebar button, .toolbar button { min-width:40px; min-height:40px; }
-
- /* パネルのチラ見え防止（既存UIには影響なし） */
-[hidden]{ display:none !important; }
-</style>
-  <style id="nl-v07-toolbar-patch-css">
-:root{--nl-green:#22c55e}
- /* ギア/キーボードが開いている間の緑枠（UI据え置き） */
-.nl-open { box-shadow:0 0 0 2px var(--nl-green) inset !important }
-
- /* はみ出し時だけ横スクロールを許可（崩さない） */
-.topbar, .toolbar, header[role="toolbar"]{ overflow-x:auto; overflow-y:hidden; white-space:nowrap }
-.topbar>* , .toolbar>* { flex:0 0 auto }
-
- /* 透明の“盾”で外側タップを吸う（下は触れない＝閉じない） */
-#nl-modal-shield{
-  position:fixed; inset:0; background:transparent; z-index:999; display:none; pointer-events:auto;
+:root{
+  --ink:#e6f1ff; --ink-dim:#9bd6e9; --bg:#0b1020;
+  --panel:#101827; --accent:#3f78ff; --accent-weak:#2a54ff;
+  --ok:#20e3c2; --muted:#2a3550; --shadow:0 10px 24px rgba(0,0,0,.45);
+  --topbar-h:44px; --sidebar-top:44px; --toolbar-w:56px; --zoom:1;
 }
-#nl-modal-shield.on{ display:block }
-[hidden]{ display:none !important; } /* パネルのちら見え抑止（他影響なし） */
+*{box-sizing:border-box} html,body{height:100%;margin:0}
+html{background:var(--bg);color:var(--ink);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Hiragino Kaku Gothic ProN",Meiryo,sans-serif}
+header.topbar{
+  position:sticky; top:0; left:0; right:0; z-index:1000;
+  height:var(--topbar-h);
+  display:flex; align-items:center; gap:8px; padding:0 10px; font-size:12px; color:#fff;
+  background:linear-gradient(0deg,rgba(42,84,255,.16),rgba(42,84,255,.16)),var(--accent);
+  border-bottom:1px solid rgba(255,255,255,.15); writing-mode:horizontal-tb;
+}
+.topbar .sp{flex:1}
+.topbar .btn{height:28px;padding:0 10px;border-radius:10px;background:rgba(255,255,255,.2);
+  border:1px solid rgba(255,255,255,.22);color:#fff;display:inline-flex;align-items:center;gap:6px}
+.topbar .btn:active{transform:translateY(1px)} .build{opacity:.8}
+
+#wrap{position:relative;height:calc(100% - var(--topbar-h))}
+#stage{position:absolute; inset:0; padding-left:var(--toolbar-w)}
+#viewport{position:absolute; inset:0; transform-origin:0 0; transform:scale(var(--zoom));}
+
+.sidebar{
+  position:fixed; z-index:900; left:0;
+  top:var(--sidebar-top); bottom:0; width:var(--toolbar-w);
+  display:flex; flex-direction:column; align-items:center;
+  background:rgba(0,0,0,.86); box-shadow:0 0 0 1px var(--muted) inset;
+}
+.sidebar .rail{width:100%; padding:6px; display:flex; flex-direction:column; gap:8px}
+.tool{
+  display:grid; place-items:center; width:100%; height:36px; border-radius:10px; cursor:pointer; user-select:none;
+  background:rgba(22,26,38,.75); border:1px solid rgba(50,60,100,.6);
+  outline:1px solid rgba(79,124,255,.35);
+  box-shadow:0 0 0 2px rgba(0,0,0,.12)
+}
+.tool svg{width:18px;height:18px;stroke:var(--ink);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.tool:hover{outline:1px solid rgba(79,124,255,.5)}
+.tool.active{outline:1px solid var(--ok)}
+.tool[data-tool="toggle"] svg{transition:transform .2s ease}
+.sidebar.collapsed .tool[data-tool="toggle"] svg{transform:rotate(180deg)}
+.sidebar.collapsed .rail > .tool:not([data-tool="toggle"]){display:none}
+.sidebar.collapsed{clip-path:inset(0 0 calc(100% - 45px) 0)}
+
+.panel{
+  position:absolute; z-index:950; left:70px; top:calc(var(--topbar-h) + 10px);
+  min-width:380px; padding:10px 14px 12px; border-radius:14px; color:var(--ink);
+  background:var(--panel); border:1px solid rgba(255,255,255,.14); box-shadow:var(--shadow);
+  display:none; user-select:none;
+}
+.panel.show{display:block}
+.panel .handle{display:flex; align-items:center; gap:8px; margin:-6px -6px 8px; padding:6px;
+  border-radius:10px; cursor:grab; touch-action:none}
+.panel .handle svg{width:16px;height:16px;stroke:var(--ink-dim)}
+.panel .row{display:flex; align-items:center; gap:10px; margin:10px 0}
+.panel .row label{width:110px;font-size:12px;color:var(--ink-dim)}
+.panel .close{margin-left:auto;height:26px;padding:0 10px;border-radius:8px;
+  border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:var(--ink);font-size:12px}
+.panel .row button{height:26px;padding:0 10px;border-radius:8px;border:1px solid rgba(255,255,255,.18);
+  background:rgba(255,255,255,.08);color:#fff}
+
+#grid,#guide,#paint{position:absolute;left:var(--toolbar-w);top:0;right:0;bottom:0}
+#grid,#guide{z-index:100;pointer-events:none} #paint{z-index:80}
+
+.text-layer{position:absolute;left:var(--toolbar-w);top:0;right:0;bottom:0;z-index:120;pointer-events:none}
+.note-text{position:absolute;min-width:64px;min-height:28px;padding:6px 8px;color:#eaf3ff;background:transparent;
+  outline:1px dashed rgba(255,255,255,.25);border-radius:6px;pointer-events:auto}
+.note-text[contenteditable="true"]:focus{outline:2px solid var(--ok)}
+.note-text .del{position:absolute;right:-8px;top:-10px;font-size:11px;color:#fff;background:#0008;border:1px solid #fff3;border-radius:8px;padding:2px 6px;display:none}
+.note-text:focus-within .del{display:block}
+
+[data-tip]{position:relative}
+[data-tip]::after{content:attr(data-tip);position:absolute;left:48px;top:50%;transform:translateY(-50%);
+  background:#222a;color:#fff;font-size:12px;padding:4px 8px;border-radius:8px;white-space:nowrap;pointer-events:none;opacity:0;translate:0 -4px;transition:.15s}
+[data-tip]:hover::after{opacity:1;translate:0 0}
+
+@media print{
+  header.topbar,.sidebar,.panel,.build,[data-tip]::after{display:none!important}
+  #stage{padding-left:0!important} body,html,#wrap{height:auto}
+}
 </style>
 </head>
 <body>
-  <div class="app">
-    <!-- ===== 左サイドバー（v0.7） ===== -->
-    <aside class="sidebar" aria-label="tool sidebar">
-      <button class="sbtn" id="penBtn" title="ペン" aria-pressed="true">
-        <svg class="icon" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25Zm18-11.5a1 1 0 0 0 0-1.41l-1.59-1.59a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75L21 5.75Z" fill="currentColor"/></svg>
-      </button>
-      <button class="sbtn" id="markerBtn" title="マーカー" aria-pressed="false">
-        <svg class="icon" viewBox="0 0 24 24"><path d="M3 15l6 6 12-12-6-6L3 15Zm0 0l-1 5 5-1" fill="currentColor"/></svg>
-      </button>
-      <button class="sbtn" id="lineBtn" title="直線" aria-pressed="false">
-        <svg class="icon" viewBox="0 0 24 24"><path d="M4 20 L20 4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
-      </button>
-      <button class="sbtn" id="eraserBtn" title="消しゴム" aria-pressed="false">
-        <svg class="icon" viewBox="0 0 24 24"><path d="M16 3 21 8 9 20H4L16 8zM3 21h18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-      </button>
-      <button class="sbtn" id="handBtn" title="ハンドル（パン）" aria-pressed="false">
-        <svg class="icon" viewBox="0 0 24 24"><path d="M6 12V6a1 1 0 1 1 2 0v6M9 12V5a1 1 0 1 1 2 0v7M12 12V4a1 1 0 1 1 2 0v8M15 13V7a1 1 0 1 1 2 0v8M6 13c-2 0-2 2-2 3 0 2 1 6 6 6h3c3 0 5-2 5-5v-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </button>
-      <button class="sbtn" id="gridBtn" title="グリッド表示" aria-pressed="false">
-        <svg class="icon" viewBox="0 0 24 24"><path d="M3 3h18v18H3zM9 3v18M15 3v18M3 9h18M3 15h18" fill="none" stroke="currentColor" stroke-width="2"/></svg>
-      </button>
-      <button class="sbtn" id="kbdBtn" title="キーボード" aria-haspopup="dialog" aria-controls="kbdPanel">
-        <svg class="icon" viewBox="0 0 24 24"><path d="M3 6h18v12H3z M5 9h2 M8 9h2 M11 9h2 M14 9h2 M17 9h2 M5 12h2 M8 12h2 M11 12h2 M14 12h2 M17 12h2 M5 15h10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-      </button>
-      <button class="sbtn" id="settingsBtn" title="設定" aria-haspopup="dialog" aria-controls="settingsPanel">
-        <svg class="icon" viewBox="0 0 24 24"><path d="M12 8a4 4 0 1 1 0 8 4 4 0 0 1 0-8Zm8.9 3a8.3 8.3 0 0 0-.1-1l2-1.5-1.8-3.2-2.4.5a7.7 7.7 0 0 0-1.5-.9l-.4-2.4H7.3l-.4 2.4a7.7 7.7 0 0 0-1.5.9l-2.4-.5L1.2 8.1 3.2 9.6a8.3 8.3 0 0 0 0 2L1.2 13l1.8 3.2 2.4-.5c.5.4 1 .7 1.5.9l.4 2.4h6.4l.4-2.4c.5-.2 1-.5 1.5-.9l2.4.5 1.8-3.2-2-1.5c.1-.3.1-.7.1-1Z" fill="none" stroke="currentColor" stroke-width="2"/></svg>
-      </button>
-    </aside>
+<header class="topbar" id="topbar">
+  <strong>Note Link v0.7.0 / No.13</strong>
+  <span class="sp"></span>
+  <button class="btn" id="btnZoomOut">−</button>
+  <button class="btn" id="btnZoomReset">100%</button>
+  <button class="btn" id="btnZoomIn">＋</button>
+  <button class="btn" id="btnUndo">undo</button>
+  <button class="btn" id="btnRedo">redo</button>
+  <button class="btn" id="btnPrint">印刷</button>
+  <button class="btn" id="btnPng">PNG</button>
+  <button class="btn" id="btnShare">共有</button>
+  <span class="build">build: mini-fix20b</span>
+</header>
 
-    <!-- ===== 上部バー ===== -->
-    <header class="topbar" role="toolbar">
-      <div class="title">Note Link v0.7.2 / No.19</div>
-      <button class="tbtn" id="zoomOut" title="縮小">−</button>
-      <button class="tbtn zoom" id="zoomDisplay" title="ズーム率">100%</button>
-      <button class="tbtn" id="zoomIn" title="拡大">＋</button>
-      <button class="tbtn" id="undoBtn" title="undo">undo</button>
-      <button class="tbtn" id="redoBtn" title="redo">redo</button>
-      <button class="tbtn" id="printBtn" title="印刷">印刷</button>
-      <button class="tbtn" id="pngBtn" title="PNG書き出し">PNG</button>
-      <button class="tbtn" id="shareBtn" title="共有">共有</button>
-      <button class="tbtn" id="fsBtn" title="全画面">全画面</button>
-    </header>
+<aside class="sidebar" id="sidebar">
+  <div class="rail">
+    <!-- △/▽ -->
+    <button class="tool active" data-tool="toggle" data-tip="ツールバーの開閉">
+      <svg viewBox="0 0 24 24"><path d="M5 15 L12 7 L19 15 M19 15 L5 15"/></svg>
+    </button>
+    <button class="tool" data-tool="pen" data-tip="ペン">
+      <svg viewBox="0 0 24 24"><path d="M3 21l4-1 12-12-3-3L4 17l-1 4zM14 6l3 3"/></svg>
+    </button>
+    <button class="tool" data-tool="marker" data-tip="マーカー">
+      <svg viewBox="0 0 24 24"><path d="M3 16l10-10 5 5-10 10-5 1 1-6zM13 6l5 5"/></svg>
+    </button>
+    <button class="tool" data-tool="eraser" data-tip="消しゴム">
+      <svg viewBox="0 0 24 24"><path d="M3 15l8-8 6 6-6 6H7zM13 7l4 4"/></svg>
+    </button>
+    <!-- Hand(選択/パン) -->
+    <button class="tool" data-tool="hand" data-tip="選択/パン">
+      <svg viewBox="0 0 24 24"><path d="M9 11V6a2 2 0 0 1 4 0v5M13 11V5a2 2 0 1 1 4 0v8M9 11a2 2 0 0 1 4 0v8l-2 2-4-4-2-6 2-1z"/></svg>
+    </button>
+    <!-- Keyboard（T代替） -->
+    <button class="tool" data-tool="keyboard" data-tip="テキスト">
+      <svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="10" rx="2"></rect><path d="M7 10h10M5 13h14"/></svg>
+    </button>
+    <button class="tool" data-tool="settings" data-tip="ツール設定（表示/非表示）">
+      <svg viewBox="0 0 24 24"><path d="M12 7.5a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9zM4 13h2l1 2-1 2H4l-1-2 1-2zm14 0h2l1 2-1 2h-2l-1-2 1-2zM8 4h2l2 1 2-1h2l1 2-1 2h-2l-2-1-2 1H8L7 6l1-2z"/></svg>
+    </button>
+  </div>
+</aside>
 
-    <!-- ===== 作業面 ===== -->
-    <section class="main">
-      <div class="workspace" id="workspace" aria-label="作業領域">
-        <div class="viewport" id="viewport">
-          <canvas id="canvas"></canvas>
-          <canvas id="overlay"></canvas>
-        </div>
-      </div>
-    </section>
+<!-- 設定パネル -->
+<div class="panel" id="panel">
+  <div class="handle" id="panelHandle" data-tip="ドラッグで移動">
+    <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    <div id="panelTool">-</div>
+    <button class="close" id="panelClose">閉じる</button>
   </div>
+  <div class="row"><label>色</label><input type="color" id="uiColor" value="#cbe58a"></div>
+  <div class="row"><label>太さ</label><input type="range" min="1" max="60" value="4" id="uiSize"><span id="uiSizeVal">4px</span></div>
+  <div class="row" id="rowAlpha"><label>不透明度</label><input type="range" min="10" max="100" value="100" id="uiAlpha"><span id="uiAlphaVal">100%</span></div>
+  <div class="row" id="rowLineCap"><label>端の形</label>
+    <select id="uiCap"><option value="butt">□ 角</option><option value="round">● 丸</option></select>
+  </div>
+  <div class="row" id="rowStraight"><label>直線モード</label>
+    <label><input type="checkbox" id="uiStraight">（モバイル / 15°刻み）</label>
+    <label><input type="checkbox" id="uiGridFirst">グリッド優先</label>
+  </div>
+  <div class="row" id="rowGrid"><label>グリッド</label>
+    <label><input type="checkbox" id="uiGrid"> 表示</label>
+    <select id="uiGridStep"><option value="5">5mm</option><option value="10" selected>10mm</option></select>
+    <input type="color" id="uiGridColor" value="#3a4f7a"/>
+  </div>
+  <div class="row" id="rowTextOps" style="display:none">
+    <label>テキスト</label>
+    <button id="btnTextAdd">テキストを追加</button>
+    <button id="btnTextBold">太字</button>
+    <button id="btnTextIt">斜体</button>
+    <button id="btnTextDel">選択削除</button>
+    <button id="btnTextBoxDel">枠ごと削除</button>
+  </div>
+</div>
 
-  <!-- ===== パネル（中央固定／外側タップで閉じない） ===== -->
-  <div class="panel" id="settingsPanel" role="dialog" aria-modal="false" hidden>
-    <div class="p-inner" onclick="event.stopPropagation()" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()">
-      <h3 class="p-title">設定</h3>
-      <div class="row"><span class="label">色</span><input type="color" id="penColor" value="#ffffff" /></div>
-      <div class="row"><span class="label">太さ</span><input type="range" id="penSize" min="1" max="20" step="0.5" value="2" /></div>
-      <div class="row"><span id="penSizeLabel">2.0 px（0.53 mm）</span></div>
-      <button class="btn" id="closeSettings">閉じる</button>
-    </div>
+<div id="wrap"><div id="stage">
+  <div id="viewport">
+    <canvas id="grid"></canvas>
+    <canvas id="guide"></canvas>
+    <canvas id="paint"></canvas>
+    <div class="text-layer" id="textLayer"></div>
   </div>
-  <div class="panel" id="kbdPanel" role="dialog" aria-modal="false" hidden>
-    <div class="p-inner" onclick="event.stopPropagation()" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()">
-      <h3 class="p-title">キーボード設定</h3>
-      <div class="row"><span class="label">文字サイズ</span><input type="range" id="fontSize" min="8" max="48" step="1" value="14" /></div>
-      <div class="row"><span id="fontSizeLabel">14 pt（18.7 px）</span></div>
-      <button class="btn" id="closeKbd">閉じる</button>
-    </div>
-  </div>
+</div></div>
 
 <script>
-/* ===== Core State ===== */
-const cssDPI=96, $=q=>document.querySelector(q);
-const els={
-  workspace:$('#workspace'), viewport:$('#viewport'),
-  canvas:$('#canvas'), overlay:$('#overlay'),
-  zoomOut:$('#zoomOut'), zoomIn:$('#zoomIn'), zoomDisplay:$('#zoomDisplay'),
-  undo:$('#undoBtn'), redo:$('#redoBtn'), print:$('#printBtn'), png:$('#pngBtn'), share:$('#shareBtn'), fs:$('#fsBtn'),
-  penBtn:$('#penBtn'), markerBtn:$('#markerBtn'), lineBtn:$('#lineBtn'), eraserBtn:$('#eraserBtn'), handBtn:$('#handBtn'), gridBtn:$('#gridBtn'),
-  settingsBtn:$('#settingsBtn'), settingsPanel:$('#settingsPanel'), closeSettings:$('#closeSettings'),
-  kbdBtn:$('#kbdBtn'), kbdPanel:$('#kbdPanel'), closeKbd:$('#closeKbd'),
-  penSize:$('#penSize'), penSizeLabel:$('#penSizeLabel'), penColor:$('#penColor'),
-  fontSize:$('#fontSize'), fontSizeLabel:$('#fontSizeLabel')
-};
-const ctx=els.canvas.getContext('2d'), octx=els.overlay.getContext('2d');
-const app={tool:'pen', grid:false, scale:1, min:.25, max:4, step:.1, panX:0, panY:0,
-  penSize:2, penColor:'#ffffff', fontPt:14,
-  strokes:[], history:[], future:[],
-  drawing:false, current:null, lineStart:null, handStart:null, pinch:null, activePointer:null};
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const DPR=Math.max(1,devicePixelRatio||1);
+const topbar=$('#topbar'), sidebar=$('#sidebar'), panel=$('#panel');
+const cvGrid=$('#grid'), ctxGrid=cvGrid.getContext('2d');
+const cvGuide=$('#guide'), ctxGuide=cvGuide.getContext('2d');
+const cv=$('#paint'), ctx=cv.getContext('2d',{alpha:true});
+const textLayer=$('#textLayer'), viewport=$('#viewport');
 
-/* ===== Layout ===== */
-function fitCanvas(){const r=els.workspace.getBoundingClientRect(), d=Math.max(1,devicePixelRatio||1);
-  [els.canvas,els.overlay].forEach(cv=>{if(cv.width!==Math.floor(r.width*d)||cv.height!==Math.floor(r.height*d)){cv.width=Math.floor(r.width*d);cv.height=Math.floor(r.height*d);cv.style.width=r.width+'px';cv.style.height=r.height+'px';}});
-  redraw(); clearOverlay();}
-function applyView(){els.viewport.style.transformOrigin='0 0'; els.viewport.style.transform=`translate(${app.panX}px,${app.panY}px) scale(${app.scale})`; els.zoomDisplay.textContent=Math.round(app.scale*100)+'%';}
-function centerPanel(p){ p.style.left=`calc(50vw - ${p.offsetWidth/2}px)`; p.style.top=`calc(50vh - ${p.offsetHeight/2}px)`; }
+let W=0,H=0, zoom=1;
+let tool='pen';
+const perTool={ pen:{color:'#cbe58a',size:4,alpha:1,cap:'butt',straight:false},
+                marker:{color:'#cbe58a',size:16,alpha:.4,cap:'butt',straight:false},
+                eraser:{size:24}, hand:{}, keyboard:{} };
 
-/* ===== Units Labels ===== */
-const pxToMm = px => px*25.4/cssDPI;
-function updatePenLabel(){els.penSizeLabel.textContent=`${app.penSize.toFixed(1)} px（${pxToMm(app.penSize).toFixed(2)} mm）`}
-function updateFontLabel(){const px=app.fontPt*cssDPI/72; els.fontSizeLabel.textContent=`${app.fontPt} pt（${px.toFixed(1)} px）`}
+let color=perTool.pen.color, size=perTool.pen.size, alpha=1, cap='butt';
+let straightToggle=false, straightKey=false, gridOn=false, gridStepMM=10, gridColor='#3a4f7a', gridFirst=false;
 
-/* ===== Drawing ===== */
-const clear=c=>c.clearRect(0,0,c.canvas.width,c.canvas.height), clearOverlay=()=>clear(octx);
-const world2screen=p=>({x:p.x*app.scale+app.panX, y:p.y*app.scale+app.panY});
-const screen2world=p=>({x:(p.x-app.panX)/app.scale, y:(p.y-app.panY)/app.scale});
-
-function drawStroke(st){ctx.save(); const d=Math.max(1,devicePixelRatio||1); ctx.scale(d,d);
-  ctx.lineCap='round'; ctx.lineJoin='round'; ctx.globalAlpha=st.alpha??1; ctx.globalCompositeOperation=st.comp||'source-over';
-  ctx.strokeStyle=st.color||'#fff'; ctx.lineWidth=st.w||2;
-  if(st.type==='free'||st.type==='marker'||st.type==='eraser'){ctx.beginPath(); st.pts.forEach((pt,i)=>{const s=world2screen(pt); if(i===0)ctx.moveTo(s.x,s.y); else ctx.lineTo(s.x,s.y);}); ctx.stroke();}
-  else if(st.type==='line'){const a=world2screen(st.a), b=world2screen(st.b); ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();}
-  ctx.restore();}
-function redraw(){clear(ctx); app.strokes.forEach(drawStroke);}
-function drawPreview(pre){clearOverlay(); if(!pre)return; const d=Math.max(1,devicePixelRatio||1); octx.save(); octx.scale(d,d);
-  octx.lineCap='round'; octx.lineJoin='round'; octx.setLineDash([6,6]); octx.globalAlpha=.95; octx.strokeStyle='#7ec8ff'; octx.lineWidth=app.penSize;
-  if(pre.type==='line'){const a=world2screen(pre.a), b=world2screen(pre.b); octx.beginPath(); octx.moveTo(a.x,a.y); octx.lineTo(b.x,b.y); octx.stroke();
-    const ang=Math.atan2(pre.b.y-pre.a.y, pre.b.x-pre.a.x)*180/Math.PI; const m={x:(a.x+b.x)/2,y:(a.y+b.y)/2};
-    octx.setLineDash([]); octx.font='12px system-ui,sans-serif'; octx.strokeStyle='rgba(0,0,0,.6)'; octx.lineWidth=3; octx.strokeText(ang.toFixed(1)+'°', m.x+8, m.y-8);
-    octx.fillStyle='#fff'; octx.fillText(ang.toFixed(1)+'°', m.x+8, m.y-8);}
-  octx.restore();}
-
-/* ===== Input (Pointer Events) ===== */
-function setTool(t){app.tool=t; [[els.penBtn,'pen'],[els.markerBtn,'marker'],[els.lineBtn,'line'],[els.eraserBtn,'eraser'],[els.handBtn,'hand']]
-  .forEach(([b,n])=>b&&b.setAttribute('aria-pressed', n===t?'true':'false'));}
-
-function beginAt(p){
-  const w=screen2world(p); app.drawing=true;
-  if(app.tool==='pen'||app.tool==='marker'||app.tool==='eraser'){
-    app.current={type:(app.tool==='eraser'?'eraser':app.tool==='marker'?'marker':'free'),
-      pts:[w], w:app.penSize, color:app.penColor, alpha:app.tool==='marker'?0.55:1, comp:app.tool==='eraser'?'destination-out':'source-over'};
-  }else if(app.tool==='line'){app.lineStart=w;}
-  else if(app.tool==='hand'){app.handStart={x:w.x,y:w.y,panX:app.panX,panY:app.panY};}
-}
-function moveAt(p){
-  if(!app.drawing) return; const w=screen2world(p);
-  if(app.tool==='pen'||app.tool==='marker'||app.tool==='eraser'){
-    app.current.pts.push(w); const arr=app.current.pts; if(arr.length>=3){const n=arr.length; arr[n-2].x=(arr[n-3].x+arr[n-2].x+arr[n-1].x)/3; arr[n-2].y=(arr[n-3].y+arr[n-2].y+arr[n-1].y)/3;}
-    redraw(); clearOverlay();
-  }else if(app.tool==='line'){redraw(); drawPreview({type:'line',a:app.lineStart,b:w});}
-  else if(app.tool==='hand'){const dx=(w.x-app.handStart.x)*app.scale, dy=(w.y-app.handStart.y)*app.scale; app.panX=app.handStart.panX+dx; app.panY=app.handStart.panY+dy; applyView();}
-}
-function endAt(p){
-  if(!app.drawing) return; const w=screen2world(p);
-  if(app.tool==='pen'||app.tool==='marker'||app.tool==='eraser'){app.strokes.push(app.current); pushHistory(); app.current=null; saveSnapshot();}
-  else if(app.tool==='line'){app.strokes.push({type:'line',a:app.lineStart,b:w,w:app.penSize,color:app.penColor,alpha:1}); app.lineStart=null; clearOverlay(); pushHistory(); saveSnapshot();}
-  app.drawing=false;
+function applyBars(){
+  const h=Math.round(topbar.getBoundingClientRect().height);
+  document.documentElement.style.setProperty('--topbar-h', h+'px');
+  const top = Math.round(h + (parseInt(getComputedStyle(document.documentElement).getPropertyValue('env(safe-area-inset-top)'))||0));
+  document.documentElement.style.setProperty('--sidebar-top', top+'px');
 }
 
-els.workspace.addEventListener('pointerdown', e=>{
-  if(e.button!==0) return; // 左クリック/タッチ/ペンのみ
-  const target = e.target;
-  if (target.closest('.panel')) return; // パネル上は無視
-  app.activePointer = e.pointerId;
-  els.workspace.setPointerCapture(app.activePointer);
-  beginAt({x:e.clientX, y:e.clientY});
-  e.preventDefault();
+/* ===== 保持復元つきリサイズ（消えない） ===== */
+let resizeLock=false;
+function resize(){
+  if(resizeLock) return; resizeLock=true;
+  const prevW=cv.width, prevH=cv.height;
+  const prevURL = (prevW && prevH) ? cv.toDataURL('image/png') : null;
+
+  applyBars();
+  const r=viewport.getBoundingClientRect();
+  W=Math.round(r.width/zoom); H=Math.round(r.height/zoom);
+  [cvGrid,cvGuide,cv].forEach(c=>{
+    c.width=Math.round(W*DPR); c.height=Math.round(H*DPR);
+    c.style.width=(W*zoom)+'px'; c.style.height=(H*zoom)+'px';
+  });
+  drawGrid();
+
+  if(prevURL){
+    const img=new Image();
+    img.onload=()=>{ ctx.drawImage(img,0,0,prevW,prevH,0,0,cv.width,cv.height); resizeLock=false; };
+    img.src=prevURL;
+  }else{
+    resizeLock=false;
+  }
+}
+addEventListener('resize', resize);
+addEventListener('orientationchange', ()=>setTimeout(resize,50));
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) setTimeout(resize,50); });
+
+/* ==== toolbar ==== */
+function setActiveTool(t){
+  const prev=tool; perTool[prev] && Object.assign(perTool[prev], {color,size,alpha,cap,straight:straightToggle});
+  tool=t; $$('.tool').forEach(b=>b.classList.toggle('active', b.dataset.tool===t));
+  $('#panelTool').textContent=t;
+  if(perTool[t]){ ({color,size,alpha=alpha,cap=cap,straight:straightToggle=false} = Object.assign({alpha,cap,straight:false}, perTool[t])); }
+  $('#rowAlpha').style.display   = (t==='marker') ? '' : 'none';
+  $('#rowLineCap').style.display = (t==='marker'||t==='pen') ? '' : 'none';
+  $('#rowStraight').style.display= (t==='pen'||t==='marker') ? '' : 'none';
+  $('#rowTextOps').style.display = (t==='keyboard') ? '' : 'none';
+  syncUI();
+}
+$$('.tool').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    const t=btn.dataset.tool;
+    if(t==='toggle'){ sidebar.classList.toggle('collapsed'); return; }
+    if(t==='settings'){
+      panel.classList.toggle('show');
+      $$('.tool').forEach(b=>{ if(b.dataset.tool==='settings') b.classList.toggle('active', panel.classList.contains('show'));});
+      return;
+    }
+    setActiveTool(t);
+  });
 });
-els.workspace.addEventListener('pointermove', e=>{
-  if(app.activePointer!==e.pointerId || !app.drawing) return;
-  moveAt({x:e.clientX, y:e.clientY}); e.preventDefault();
-}, {passive:false});
-function endPointer(e){ if(app.activePointer!==e.pointerId) return; endAt({x:e.clientX, y:e.clientY}); els.workspace.releasePointerCapture(app.activePointer); app.activePointer=null; e.preventDefault(); }
-els.workspace.addEventListener('pointerup', endPointer);
-els.workspace.addEventListener('pointercancel', endPointer);
 
-/* ピンチズーム（2本指） */
-let pinch=null;
-els.workspace.addEventListener('touchstart', e=>{
-  if(e.touches.length===2){
-    const[a,b]=e.touches; const dx=b.clientX-a.clientX, dy=b.clientY-a.clientY;
-    pinch={d:Math.hypot(dx,dy), start:app.scale, cx:(a.clientX+b.clientX)/2, cy:(a.clientY+b.clientY)/2};
+/* ==== panel drag (handle only) ==== */
+(()=>{
+  let id=null, sx=0,sy=0,ox=0,oy=0,drag=false;
+  const handle=$('#panelHandle');
+  function down(e){ drag=true; id=e.pointerId; panel.setPointerCapture(id);
+    sx=e.clientX; sy=e.clientY; const r=panel.getBoundingClientRect(); ox=r.left; oy=r.top; e.preventDefault(); }
+  function move(e){ if(!drag||e.pointerId!==id) return; const nx=ox+(e.clientX-sx), ny=oy+(e.clientY-sy);
+    panel.style.left=Math.max(56,nx)+'px';
+    const top=parseInt(getComputedStyle(document.documentElement).getPropertyValue('--topbar-h'))+6;
+    panel.style.top=Math.max(top,ny)+'px'; }
+  function up(e){ if(e.pointerId!==id) return; drag=false; try{ panel.releasePointerCapture(id);}catch{} id=null; }
+  handle.addEventListener('pointerdown',down,{passive:false});
+  panel.addEventListener('pointermove',move,{passive:false});
+  panel.addEventListener('pointerup',up,{passive:false});
+  panel.addEventListener('pointercancel',up,{passive:false});
+  $('#panelClose').addEventListener('click',()=>{
+    panel.classList.remove('show');
+    // ギアの緑枠もOFF
+    $$('.tool').forEach(b=>{ if(b.dataset.tool==='settings') b.classList.remove('active');});
+  });
+})();
+
+/* ==== panel inputs ==== */
+const ui={ color:$('#uiColor'), size:$('#uiSize'), alpha:$('#uiAlpha'),
+  sizeVal:$('#uiSizeVal'), alphaVal:$('#uiAlphaVal'), cap:$('#uiCap'),
+  straight:$('#uiStraight'), gridFirst:$('#uiGridFirst'),
+  gOn:$('#uiGrid'), gStep:$('#uiGridStep'), gColor:$('#uiGridColor') };
+
+function pxToMm(px){ return px*25.4/96; } // 96dpi換算（CSS px 基準）
+
+function syncUI(){
+  ui.color.value=color; ui.size.value=size; ui.sizeVal.textContent=`${size}px  (${pxToMm(size).toFixed(2)} mm)`;
+  ui.alpha.value=Math.round(alpha*100); ui.alphaVal.textContent=Math.round(alpha*100)+'%';
+  ui.cap.value=cap; ui.straight.checked=straightToggle; ui.gridFirst.checked=gridFirst;
+  ui.gOn.checked=gridOn; ui.gStep.value=String(gridStepMM); ui.gColor.value=gridColor;
+}
+function onPanelChange(){
+  color=ui.color.value; size=+ui.size.value; ui.sizeVal.textContent=`${size}px  (${pxToMm(size).toFixed(2)} mm)`;
+  alpha=+ui.alpha.value/100; ui.alphaVal.textContent=Math.round(alpha*100)+'%';
+  cap=ui.cap.value; straightToggle=ui.straight.checked; gridFirst=ui.gridFirst.checked;
+  gridOn=ui.gOn.checked; gridStepMM=+ui.gStep.value; gridColor=ui.gColor.value;
+  drawGrid();
+}
+Object.values(ui).forEach(el=>el?.addEventListener?.('input',onPanelChange));
+
+/* ==== zoom ==== */
+function setZoom(z){
+  zoom=Math.min(3,Math.max(0.5, z));
+  document.documentElement.style.setProperty('--zoom', zoom);
+  $('#btnZoomReset').textContent = Math.round(zoom*100) + '%'; // 現在％を表示
+  resize();
+}
+$('#btnZoomIn').addEventListener('click',()=>setZoom(zoom+0.1));
+$('#btnZoomOut').addEventListener('click',()=>setZoom(zoom-0.1));
+$('#btnZoomReset').addEventListener('click',()=>setZoom(1));
+
+/* ==== canvas/grid ==== */
+function clear(c){ c.getContext('2d').clearRect(0,0,c.width,c.height) }
+function mmToPx(mm){ return mm*96/25.4*DPR }
+function drawGrid(){
+  clear(cvGrid); if(!gridOn) return;
+  const step=mmToPx(gridStepMM), s=ctxGrid, ox=0.5*DPR, oy=0.5*DPR;
+  s.save(); s.lineWidth=1; s.strokeStyle=gridColor+'CC';
+  s.beginPath();
+  for(let x=ox;x<=cvGrid.width;x+=step){ s.moveTo(x,0); s.lineTo(x,cvGrid.height); }
+  for(let y=oy;y<=cvGrid.height;y+=step){ s.moveTo(0,y); s.lineTo(cvGrid.width,y); }
+  s.stroke(); s.restore();
+}
+
+/* ==== drawing ==== */
+function setCtx(){
+  ctx.lineCap=(tool==='marker'||tool==='pen')?cap:'round';
+  if(tool==='marker'){ ctx.globalCompositeOperation='source-over'; ctx.strokeStyle=hexA(color,alpha) }
+  else if(tool==='pen'){ ctx.globalCompositeOperation='source-over'; ctx.strokeStyle=color }
+  else if(tool==='eraser'){ ctx.globalCompositeOperation='destination-out'; ctx.strokeStyle='rgba(0,0,0,1)' }
+  ctx.lineWidth=size*DPR;
+}
+function hexA(hex,a){const m=/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  const r=parseInt(m[1],16),g=parseInt(m[2],16),b=parseInt(m[3],16); return `rgba(${r},${g},${b},${a})`;}
+function pt(e){
+  const r=cv.getBoundingClientRect();
+  const x=(e.clientX-r.left)/zoom*DPR, y=(e.clientY-r.top)/zoom*DPR;
+  return {x,y}
+}
+let drawing=false, startPt=null, panning=false, panStart=null, viewportOffset={x:0,y:0};
+
+function snapToGrid(p){
+  if(!gridOn) return p;
+  const g=mmToPx(gridStepMM);
+  return { x:Math.round(p.x/g)*g, y:Math.round(p.y/g)*g };
+}
+function snapLine(p0,p1){
+  // グリッド優先：角度スナップしない
+  if(gridFirst){ const a0=snapToGrid(p0), a1=snapToGrid(p1); return {x:a1.x,y:a1.y,ang:Math.atan2(a1.y-a0.y,a1.x-a0.x)}; }
+  const dx=p1.x-p0.x, dy=p1.y-p0.y, step=Math.PI/12;
+  let ang=Math.round(Math.atan2(dy,dx)/step)*step;
+  let len=Math.hypot(dx,dy), x=p0.x+Math.cos(ang)*len, y=p0.y+Math.sin(ang)*len;
+  if(gridOn){ ({x,y}=snapToGrid({x,y})); }
+  return {x,y,ang};
+}
+function drawAngleHUD(p,ang){
+  clear(cvGuide);
+  const s=ctxGuide, d=DPR; s.save(); s.translate(p.x,p.y);
+  s.fillStyle='#000a'; s.strokeStyle='#ddd'; s.lineWidth=1.5*d;
+  s.beginPath(); s.roundRect(-28*d,-16*d,56*d,22*d,6*d); s.fill(); s.stroke();
+  s.fillStyle='#fff'; s.font=(12*d)+'px system-ui'; s.textAlign='center'; s.textBaseline='middle';
+  const deg=(ang*180/Math.PI); s.fillText((deg>=0?'+':'')+Math.round(deg)+'°',0,-5*d); s.restore();
+}
+
+/* ==== history ==== */
+const hist=[], redoStack=[];
+function snapshot(){ return { url: cv.toDataURL(), texts: textLayer.innerHTML }; }
+function pushHistory(){ hist.push(snapshot()); if(hist.length>10) hist.shift(); redoStack.length=0; }
+async function restore(snap){
+  clear(cv); textLayer.innerHTML=snap?.texts||'';
+  if(!snap?.url) return;
+  await new Promise(res=>{ const img=new Image(); img.onload=()=>{ ctx.drawImage(img,0,0); res(); }; img.src=snap.url; });
+}
+async function undo(){ if(!hist.length) return; const cur=snapshot(); const prev=hist.pop(); redoStack.push(cur); await restore(prev); }
+async function redo(){ const next=redoStack.pop(); if(!next) return; hist.push(snapshot()); await restore(next); }
+
+/* ==== pointer handlers ==== */
+cv.addEventListener('pointerdown', e=>{
+  if(tool==='hand'){ // パン
+    panning=true; panStart={x:e.clientX,y:e.clientY, vx:viewportOffset.x, vy:viewportOffset.y}; return;
   }
-},{passive:true});
-els.workspace.addEventListener('touchmove', e=>{
-  if(pinch && e.touches.length===2){
-    const[a,b]=e.touches; const dx=b.clientX-a.clientX, dy=b.clientY-a.clientY; const d=Math.hypot(dx,dy);
-    setScale(pinch.start*(d/pinch.d), {x:(a.clientX+b.clientX)/2, y:(a.clientY+b.clientY)/2});
-    e.preventDefault();
-  }
+  e.preventDefault(); cv.setPointerCapture(e.pointerId);
+  setCtx(); let p=pt(e); startPt = (gridFirst && (straightKey || ui.straight.checked)) ? snapToGrid(p) : p;
+  drawing=true; if(!(straightKey || ui.straight.checked)){ ctx.beginPath(); ctx.moveTo(startPt.x,startPt.y); }
+  pushHistory();
 },{passive:false});
-els.workspace.addEventListener('touchend', ()=>{ if(pinch) pinch=null; }, {passive:true});
 
-/* ホイールズーム（Ctrl+Wheel） */
-els.workspace.addEventListener('wheel', e=>{ if(!e.ctrlKey) return; e.preventDefault();
-  const d=-Math.sign(e.deltaY)*app.step; setScale(app.scale+d, {x:e.clientX,y:e.clientY}); }, {passive:false});
+cv.addEventListener('pointermove', e=>{
+  if(tool==='hand' && panning){
+    const dx=e.clientX - panStart.x, dy=e.clientY - panStart.y;
+    viewport.style.translate = `${panStart.vx+dx}px ${panStart.vy+dy}px`;
+    return;
+  }
+  if(!drawing) return;
+  let p=pt(e);
+  // フリーハンドはグリッドに吸着しない
+  if(!(straightKey || ui.straight.checked)){
+    ctx.lineTo(p.x,p.y); ctx.stroke(); return;
+  }
+  // 直線はガイドへプレビューのみ
+  const sp=snapLine(startPt,p);
+  clear(cvGuide);
+  const g=ctxGuide; g.save(); g.lineCap=ctx.lineCap; g.lineWidth=size*DPR; g.strokeStyle='#7ec8ff';
+  g.setLineDash([6*DPR,6*DPR]); g.beginPath(); g.moveTo(startPt.x,startPt.y); g.lineTo(sp.x,sp.y); g.stroke(); g.restore();
+  drawAngleHUD(sp,sp.ang);
+},{passive:false});
 
-/* ===== Grid / History ===== */
-function toggleGrid(){ app.grid=!app.grid; els.gridBtn.setAttribute('aria-pressed', app.grid?'true':'false'); els.workspace.classList.toggle('grid-on', app.grid); }
-function pushHistory(){ app.history.push(JSON.stringify(app.strokes)); if(app.history.length>300) app.history.shift(); app.future.length=0; }
-function undo(){ if(app.history.length){ app.future.push(JSON.stringify(app.strokes)); app.strokes=JSON.parse(app.history.pop()); redraw(); saveSnapshot(); } }
-function redo(){ if(app.future.length){ app.history.push(JSON.stringify(app.strokes)); app.strokes=JSON.parse(app.future.pop()); redraw(); saveSnapshot(); } }
+cv.addEventListener('pointerup', e=>{
+  if(tool==='hand' && panning){ panning=false; return; }
+  if(!drawing){ clear(cvGuide); return; }
+  // 直線はここで確定描画（1回）
+  if(straightKey || ui.straight.checked){
+    let p=pt(e); const sp=snapLine(startPt,p); setCtx();
+    ctx.beginPath(); ctx.moveTo(startPt.x,startPt.y); ctx.lineTo(sp.x,sp.y); ctx.stroke();
+  }
+  drawing=false; startPt=null; clear(cvGuide);
+},{passive:false});
 
-/* ===== Persistence ===== */
-const DB='notelink-db', STORE='doc', KEY='latest';
-function idbOpen(){return new Promise((ok,ng)=>{const r=indexedDB.open(DB,1); r.onupgradeneeded=e=>{const db=e.target.result; if(!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE);}; r.onsuccess=()=>ok(r.result); r.onerror=()=>ng(r.error);});}
-async function idbSet(v){try{const db=await idbOpen(); const tx=db.transaction(STORE,'readwrite'); tx.objectStore(STORE).put(v,KEY); await new Promise((ok,ng)=>{tx.oncomplete=ok; tx.onerror=()=>ng(tx.error)}); db.close();}catch{}}
-async function idbGet(){try{const db=await idbOpen(); const tx=db.transaction(STORE,'readonly'); const req=tx.objectStore(STORE).get(KEY);
-  const v=await new Promise((ok,ng)=>{req.onsuccess=()=>ok(req.result); req.onerror=()=>ng(req.error)}); db.close(); return v;}catch{return null}}
-function saveSnapshot(){ idbSet(JSON.stringify({strokes:app.strokes, scale:app.scale, panX:app.panX, panY:app.panY, penSize:app.penSize, penColor:app.penColor, fontPt:app.fontPt})); }
-async function restoreSnapshot(){ const raw=await idbGet(); if(!raw) { pushHistory(); return; }
-  try{ const s=JSON.parse(raw); app.strokes=s.strokes||[]; app.scale=s.scale??1; app.panX=s.panX??0; app.panY=s.panY??0;
-    app.penSize=s.penSize??2; els.penSize.value=app.penSize; app.penColor=s.penColor||'#ffffff'; els.penColor.value=app.penColor;
-    app.fontPt=s.fontPt??14; els.fontSize.value=app.fontPt; updatePenLabel(); updateFontLabel(); applyView(); redraw(); pushHistory();
-  }catch{ pushHistory(); } }
-document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='hidden') saveSnapshot(); });
-window.addEventListener('pagehide', saveSnapshot);
-window.addEventListener('pageshow', restoreSnapshot);
+/* ==== keyboard ==== */
+addEventListener('keydown',e=>{ if(e.key==='Shift') straightKey=true; });
+addEventListener('keyup',e=>{ if(e.key==='Shift') straightKey=false; });
 
-/* ===== Panels ===== */
-function openPanel(btn,p){btn.classList.add('is-open'); btn.setAttribute('aria-pressed','true'); p.hidden=false; centerPanel(p);}
-function closePanel(btn,p){btn.classList.remove('is-open'); btn.setAttribute('aria-pressed','false'); p.hidden=true;}
-function togglePanel(btn,p){ (btn.getAttribute('aria-pressed')==='true') ? closePanel(btn,p) : openPanel(btn,p); }
-['click','mousedown','touchstart'].forEach(t=>{
-  els.settingsPanel.addEventListener(t, e=>e.stopPropagation(), {passive:true});
-  els.kbdPanel.addEventListener(t, e=>e.stopPropagation(), {passive:true});
+/* ==== text ==== */
+function addText(){
+  const el=document.createElement('div'); el.className='note-text'; el.contentEditable='true';
+  el.setAttribute('tabindex','0'); el.setAttribute('inputmode','text');
+  el.style.left=(90+Math.random()*40)+'px'; el.style.top=(70+Math.random()*40)+'px';
+  el.textContent='テキスト';
+  const del=document.createElement('button'); del.className='del'; del.textContent='削除';
+  del.addEventListener('click',()=>el.remove()); el.appendChild(del);
+  textLayer.appendChild(el); setTimeout(()=>el.focus(),0);
+}
+$('#btnTextAdd').addEventListener('click', addText);
+$('#btnTextBold').addEventListener('click',()=>document.execCommand('bold',false,null));
+$('#btnTextIt').addEventListener('click',()=>document.execCommand('italic',false,null));
+$('#btnTextDel').addEventListener('click',()=>document.execCommand('delete',false,null));
+$('#btnTextBoxDel').addEventListener('click',()=>{
+  const sel=window.getSelection(); if(!sel.rangeCount) return;
+  let el=sel.anchorNode; while(el && !(el instanceof HTMLElement && el.classList.contains('note-text'))) el=el.parentNode;
+  if(el) el.remove();
+});
+textLayer.addEventListener('pointerdown',e=>{
+  const el=e.target.closest('.note-text'); if(!el) return; e.preventDefault();
+  const r=el.getBoundingClientRect(), base=textLayer.getBoundingClientRect();
+  let sx=e.clientX, sy=e.clientY, ox=r.left-base.left, oy=r.top-base.top; let drag=true;
+  el.setPointerCapture(e.pointerId);
+  function mv(ev){ if(!drag) return; el.style.left=(ox+(ev.clientX-sx))+'px'; el.style.top=(oy+(ev.clientY-sy))+'px'; }
+  function up(){ drag=false; el.releasePointerCapture(e.pointerId); textLayer.removeEventListener('pointermove',mv); textLayer.removeEventListener('pointerup',up); }
+  textLayer.addEventListener('pointermove',mv,{passive:false}); textLayer.addEventListener('pointerup',up,{passive:false});
+},{passive:false});
+
+/* ==== PNG / Print / Share ==== */
+function composite(){
+  const out=document.createElement('canvas'); out.width=cv.width; out.height=cv.height;
+  const o=out.getContext('2d');
+  o.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--bg').trim()||'#0b1020';
+  o.fillRect(0,0,out.width,out.height); o.drawImage(cvGrid,0,0); o.drawImage(cv,0,0);
+  [...textLayer.querySelectorAll('.note-text')].forEach(n=>{
+    const r=n.getBoundingClientRect(), layer=textLayer.getBoundingClientRect();
+    const x=((r.left-layer.left)/zoom)*DPR, y=((r.top-layer.top)/zoom)*DPR;
+    o.fillStyle='#eaf3ff'; o.font=(16*DPR)+'px system-ui'; o.fillText(n.textContent.trim(), x, y+16*DPR);
+  });
+  return out;
+}
+$('#btnPng').addEventListener('click',()=>composite().toBlob(b=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='note-link.png';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),800)}));
+$('#btnPrint').addEventListener('click',()=>window.print());
+$('#btnShare').addEventListener('click',()=>{
+  composite().toBlob(async b=>{
+    const f=new File([b],'note.png',{type:'image/png'});
+    if(navigator.share && navigator.canShare && navigator.canShare({files:[f]})){
+      try{ await navigator.share({files:[f],title:'Note Link'});}catch(e){}
+    }else{ const u=URL.createObjectURL(b); const a=document.createElement('a'); a.href=u; a.download='note-link.png'; a.click(); setTimeout(()=>URL.revokeObjectURL(u),800); }
+  });
 });
 
-/* ===== Export / Print / Share / Fullscreen ===== */
-function exportPNG(){ const a=document.createElement('a'); a.download=`notelink-${Date.now()}.png`; a.href=els.canvas.toDataURL('image/png'); a.click(); }
-async function share(){ try{
-  const blob=await (await fetch(els.canvas.toDataURL('image/png'))).blob();
-  if (navigator.canShare && navigator.canShare({files:[new File([blob],'note.png',{type:'image/png'})]}))
-    await navigator.share({files:[new File([blob],'note.png',{type:'image/png'})]});
-  else exportPNG();
-}catch{ exportPNG(); }}
+/* ==== Undo/Redo 配線 ==== */
+$('#btnUndo').addEventListener('click', undo);
+$('#btnRedo').addEventListener('click', redo);
 
-/* ===== Wiring ===== */
-window.addEventListener('resize', fitCanvas);
-
-els.zoomOut.addEventListener('click', ()=>setScale(app.scale-app.step));
-els.zoomIn .addEventListener('click', ()=>setScale(app.scale+app.step));
-els.undo.addEventListener('click', undo);
-els.redo.addEventListener('click', redo);
-els.print.addEventListener('click', ()=>window.print());
-els.png.addEventListener('click', exportPNG);
-els.share.addEventListener('click', share);
-els.fs.addEventListener('click', async()=>{ try{ if(!document.fullscreenElement){ await document.documentElement.requestFullscreen(); els.fs.textContent='全画面終了'; } else { await document.exitFullscreen(); els.fs.textContent='全画面'; } }catch{} });
-
-els.penBtn.addEventListener('click', ()=>setTool('pen'));
-els.markerBtn.addEventListener('click', ()=>setTool('marker'));
-els.lineBtn.addEventListener('click', ()=>setTool('line'));
-els.eraserBtn.addEventListener('click', ()=>setTool('eraser'));
-els.handBtn.addEventListener('click', ()=>setTool('hand'));
-els.gridBtn.addEventListener('click', toggleGrid);
-
-els.settingsBtn.addEventListener('click', ()=>togglePanel(els.settingsBtn, els.settingsPanel));
-els.closeSettings.addEventListener('click', ()=>closePanel(els.settingsBtn, els.settingsPanel));
-els.kbdBtn.addEventListener('click', ()=>togglePanel(els.kbdBtn, els.kbdPanel));
-els.closeKbd.addEventListener('click', ()=>closePanel(els.kbdBtn, els.kbdPanel));
-
-els.penSize.addEventListener('input', ()=>{ app.penSize=parseFloat(els.penSize.value); updatePenLabel(); }, {passive:true});
-els.penColor.addEventListener('input', ()=>{ app.penColor=els.penColor.value; }, {passive:true});
-els.fontSize.addEventListener('input', ()=>{ app.fontPt=parseInt(els.fontSize.value,10); updateFontLabel(); }, {passive:true});
-
-/* ===== Zoom helpers ===== */
-function setScale(next, center){
-  app.scale=Math.max(app.min, Math.min(app.max, next));
-  if(center){ const before=screen2world(center); applyView(); const after=screen2world(center); app.panX+=(after.x-before.x)*app.scale; app.panY+=(after.y-before.y)*app.scale; }
-  applyView();
-}
-
-/* ===== Init ===== */
-function init(){ setTool('pen'); fitCanvas(); applyView(); updatePenLabel(); updateFontLabel(); restoreSnapshot();
-  centerPanel(els.settingsPanel); centerPanel(els.kbdPanel);
+/* ==== init ==== */
+function init(){
+  applyBars(); document.documentElement.style.setProperty('--zoom', zoom);
+  $('#btnZoomReset').textContent = '100%';
+  setTimeout(resize,0); setActiveTool('pen'); panel.classList.add('show'); // 初回見えるように
 }
 init();
 </script>
-</body>
-  <script id="nl-toolbar-only-fixjs">
-(function(){
-  // ------- ユーティリティ（既存ID/クラス名が違っても拾う） -------
-  const $ = (s,sc=document)=>sc.querySelector(s);
-  const $$ = (s,sc=document)=>Array.from(sc.querySelectorAll(s));
-  const pick = (arr)=>arr.find(Boolean);
-  // 候補のどれかが居たら採用するセレクタ
-  function anySel(list){ for(const s of list){ const el=$(s); if(el) return el; } return null; }
-  function byText(root,tag,text){
-    const els = $$(tag,root);
-    return els.find(e => (e.textContent||"").trim().includes(text));
-  }
-
-  // ------- 既存DOMから対象を“探して”つなぐ -------
-  const gearBtn = anySel([
-    '#settingsBtn','#btn_settings','#gearBtn','button[aria-controls*="settings"]','button[title*="設定"]'
-  ]);
-  const kbdBtn = anySel([
-    '#kbdBtn','#btn_keyboard','button[aria-controls*="kbd"]','button[title*="キーボード"]'
-  ]);
-
-  // パネルはID優先→ロール/文言で推定
-  let settingsPanel = anySel(['#settingsPanel','#panel_settings','[data-panel="settings"]']);
-  let kbdPanel      = anySel(['#kbdPanel','#panel_kbd','[data-panel="kbd"]']);
-  settingsPanel = settingsPanel || byText(document,'div','設定') || byText(document,'dialog','設定');
-  kbdPanel      = kbdPanel      || byText(document,'div','キーボード') || byText(document,'dialog','キーボード');
-
-  // ラベル（mm/pt 併記、存在しなければ自動生成）
-  const penSize = anySel(['#penSize','input[name="penSize"]','input[type="range"][id*="pen"]']);
-  let penSizeLabel = anySel(['#penSizeLabel','[data-role="penSizeLabel"]']);
-  if (!penSizeLabel && settingsPanel){
-    penSizeLabel = document.createElement('div');
-    penSizeLabel.id = 'penSizeLabel';
-    penSizeLabel.style.marginTop = '8px';
-    settingsPanel.appendChild(penSizeLabel);
-  }
-  const fontSize = anySel(['#fontSize','input[name="fontSize"]','input[type="range"][id*="font"]']);
-  let fontSizeLabel = anySel(['#fontSizeLabel','[data-role="fontSizeLabel"]']);
-  if (!fontSizeLabel && kbdPanel){
-    fontSizeLabel = document.createElement('div');
-    fontSizeLabel.id = 'fontSizeLabel';
-    fontSizeLabel.style.marginTop = '8px';
-    kbdPanel.appendChild(fontSizeLabel);
-  }
-  const cssDPI = 96;
-  const px2mm = px => px*25.4/cssDPI;
-  function updatePenLabel(){
-    if (!penSize || !penSizeLabel) return;
-    const v = parseFloat(penSize.value || '2');
-    penSizeLabel.textContent = `${v.toFixed(1)} px（${px2mm(v).toFixed(2)} mm）`;
-  }
-  function updateFontLabel(){
-    if (!fontSize || !fontSizeLabel) return;
-    const pt = parseInt(fontSize.value || '14', 10);
-    const px = pt * cssDPI / 72;
-    fontSizeLabel.textContent = `${pt} pt（${px.toFixed(1)} px）`;
-  }
-  penSize && penSize.addEventListener('input', updatePenLabel, {passive:true});
-  fontSize && fontSize.addEventListener('input', updateFontLabel, {passive:true});
-  updatePenLabel(); updateFontLabel();
-
-  // ------- トグル：外側タップで閉じない（キャプチャでブロック） -------
-  function openPanel(btn,panel){
-    if (!btn || !panel) return;
-    btn.classList.add('nl-gear-open');
-    btn.setAttribute('aria-pressed','true');
-    panel.hidden = false;
-  }
-  function closePanel(btn,panel){
-    if (!btn || !panel) return;
-    btn.classList.remove('nl-gear-open');
-    btn.setAttribute('aria-pressed','false');
-    panel.hidden = true;
-  }
-  function togglePanel(btn,panel){
-    if (!btn || !panel) return;
-    const isOpen = btn.getAttribute('aria-pressed') === 'true' || !panel.hidden;
-    isOpen ? closePanel(btn,panel) : openPanel(btn,panel);
-  }
-
-  // 既存の「外側クリックで閉じる」系を**上書きで無効化**
-  // （キャプチャ段階で止める：他スクリプトより先に通る）
-  let preventOutside = false;
-  document.addEventListener('click', (e)=>{
-    if (!preventOutside) return;
-    // 設定/キーボードの外側クリックは**閉じさせない**
-    if (settingsPanel && !settingsPanel.hidden && !settingsPanel.contains(e.target) && gearBtn && !gearBtn.contains(e.target)) {
-      e.stopImmediatePropagation(); e.preventDefault();
-    }
-    if (kbdPanel && !kbdPanel.hidden && !kbdPanel.contains(e.target) && kbdBtn && !kbdBtn.contains(e.target)) {
-      e.stopImmediatePropagation(); e.preventDefault();
-    }
-  }, true); // ← capture
-
-  // ボタン配線（存在するものだけ）
-  if (gearBtn && settingsPanel){
-    // パネル内クリックは外に伝えない（既存close防止の保険）
-    ['click','mousedown','touchstart','pointerdown'].forEach(t=>{
-      settingsPanel.addEventListener(t, ev=>ev.stopPropagation(), {passive:true});
-    });
-    gearBtn.addEventListener('click', ()=>{
-      preventOutside = true;               // ← 外側タップ無効化をON
-      togglePanel(gearBtn, settingsPanel);
-    });
-  }
-  if (kbdBtn && kbdPanel){
-    ['click','mousedown','touchstart','pointerdown'].forEach(t=>{
-      kbdPanel.addEventListener(t, ev=>ev.stopPropagation(), {passive:true});
-    });
-    kbdBtn.addEventListener('click', ()=>{
-      preventOutside = true;
-      togglePanel(kbdBtn, kbdPanel);
-    });
-  }
-
-  // 明示的な「閉じる」ボタンがある場合は尊重（外側では閉じないが、ここは閉じる）
-  const closeSettings = anySel(['#settingsClose','button.close-settings','.btn-close-settings']);
-  closeSettings && closeSettings.addEventListener('click', ()=>closePanel(gearBtn, settingsPanel));
-
-  const closeKbd = anySel(['#kbdClose','button.close-kbd','.btn-close-kbd']);
-  closeKbd && closeKbd.addEventListener('click', ()=>closePanel(kbdBtn, kbdPanel));
-
-  // ------- アイコン重なりの最終保険（レイアウトは変えない） -------
-  // ボタンが可視境界をはみ出す場合のみ、スクロール可能にする
-  const bar = anySel(['.topbar','.toolbar','header[role="toolbar"]']);
-  if (bar) {
-    const ro = new ResizeObserver(()=>{
-      if (bar.scrollWidth > bar.clientWidth) {
-        bar.style.overflowX = 'auto';
-        bar.style.whiteSpace = 'nowrap';
-      }
-    });
-    ro.observe(bar);
-  }
-
-  // 初期状態を“閉じてる”で統一
-  if (gearBtn && settingsPanel){ closePanel(gearBtn, settingsPanel); }
-  if (kbdBtn && kbdPanel){ closePanel(kbdBtn, kbdPanel); }
-})();
-</script>
-</html>
-<script id="nl-v07-toolbar-patch-js">
-(()=>{ "use strict";
-const $=(s,sc=document)=>sc.querySelector(s);
-const $$=(s,sc=document)=>Array.from(sc.querySelectorAll(s));
-const first=(...cands)=>cands.find(Boolean);
-
-/* ---------- 盾（外側タップ無効の決定版） ---------- */
-let shield = $("#nl-modal-shield");
-if(!shield){ shield = document.createElement("div"); shield.id="nl-modal-shield"; document.body.appendChild(shield); }
-["click","mousedown","pointerdown","touchstart"].forEach(t=>{
-  shield.addEventListener(t, e=>{ e.stopPropagation(); e.preventDefault(); }, {capture:true, passive:false});
-});
-
-/* ---------- 対象を“自動検出” ---------- */
-function findBtn(titleText, idCands=[], ctrlKey=""){
-  return first(
-    ...idCands.map(id=>$("#"+id)),
-    ...$$('button').filter(b=> (b.title||"").includes(titleText)),
-    ctrlKey ? $$('button').find(b=> (b.getAttribute("aria-controls")||"").includes(ctrlKey)) : null
-  );
-}
-function findPanel(idCands=[], labelText=""){
-  return first(
-    ...idCands.map(id=>$("#"+id)),
-    ...$$('div,dialog,section,aside').filter(p=> (p.id||"").toLowerCase().includes("panel") && (p.textContent||"").includes(labelText)),
-    ...$$(`[role="dialog"]`).filter(p=> (p.textContent||"").includes(labelText))
-  );
-}
-
-const gearBtn = findBtn("設定", ["settingsBtn","btn_settings","gearBtn"], "settings");
-const kbdBtn  = findBtn("キーボード", ["kbdBtn","btn_keyboard"], "kbd");
-
-let settingsPanel = findPanel(["settingsPanel","panel_settings"], "設定");
-let kbdPanel      = findPanel(["kbdPanel","panel_kbd"], "キーボード");
-
-/* パネル内は外へイベントを通さない（保険） */
-function swallowInside(panel){
-  ["click","mousedown","pointerdown","touchstart"].forEach(t=>{
-    panel.addEventListener(t, ev=>ev.stopPropagation(), {passive:true});
-  });
-}
-settingsPanel && swallowInside(settingsPanel);
-kbdPanel && swallowInside(kbdPanel);
-
-/* ---------- 開閉（外側タップでは閉じない） ---------- */
-function openPanel(btn,panel){
-  if(!btn||!panel) return;
-  btn.classList.add("nl-open");
-  btn.setAttribute("aria-pressed","true");
-  panel.hidden = false;
-  shield.classList.add("on"); // ← 外側は“盾”が受けるので閉じない
-}
-function closePanel(btn,panel){
-  if(!btn||!panel) return;
-  btn.classList.remove("nl-open");
-  btn.setAttribute("aria-pressed","false");
-  panel.hidden = true;
-  if(!(kbdBtn && !kbdPanel.hidden) && !(gearBtn && !settingsPanel.hidden)){
-    shield.classList.remove("on");
-  }
-}
-function togglePanel(btn,panel){
-  const open = (btn.getAttribute("aria-pressed")==="true") || (panel && panel.hidden===false);
-  open ? closePanel(btn,panel) : openPanel(btn,panel);
-}
-
-/* 配線（存在するものだけ） */
-gearBtn && settingsPanel && gearBtn.addEventListener("click", ()=>togglePanel(gearBtn,settingsPanel));
-kbdBtn  && kbdPanel      && kbdBtn .addEventListener("click", ()=>togglePanel(kbdBtn,kbdPanel));
-
-/* ---------- ラベル併記（px→mm / pt→px） ---------- */
-const cssDPI=96, px2mm=px=>px*25.4/cssDPI;
-function setupPxMm(panel){
-  if(!panel) return;
-  const rng = $("#penSize", panel) || $('input[type="range"]', panel);
-  if(!rng) return;
-  let label = $("#penSizeLabel", panel);
-  if(!label){ label=document.createElement("div"); label.id="penSizeLabel"; label.style.marginTop="8px"; panel.appendChild(label); }
-  const upd=()=>{ const v=parseFloat(rng.value||"2"); label.textContent=`${v.toFixed(1)} px（${px2mm(v).toFixed(2)} mm）`; };
-  rng.addEventListener("input", upd, {passive:true}); upd();
-}
-function setupPtPx(panel){
-  if(!panel) return;
-  const rng = $("#fontSize", panel) || $$('input[type="range"]', panel).find(el=>/font|文字サイズ/.test(el.id+el.name+panel.textContent));
-  if(!rng) return;
-  let label = $("#fontSizeLabel", panel);
-  if(!label){ label=document.createElement("div"); label.id="fontSizeLabel"; label.style.marginTop="8px"; panel.appendChild(label); }
-  const upd=()=>{ const pt=parseInt(rng.value||"14",10); const px=pt*cssDPI/72; label.textContent=`${pt} pt（${px.toFixed(1)} px）`; };
-  rng.addEventListener("input", upd, {passive:true}); upd();
-}
-setupPxMm(settingsPanel);
-setupPtPx(kbdPanel);
-
-/* ---------- はみ出し保険：計測して必要時のみ有効 ---------- */
-function guardOverflow(){
-  const bar = $(".topbar") || $(".toolbar") || $('header[role="toolbar"]');
-  if(!bar) return;
-  const need = bar.scrollWidth > bar.clientWidth + 2;
-  if(need){ bar.style.overflowX="auto"; bar.style.whiteSpace="nowrap"; }
-}
-new ResizeObserver(()=>guardOverflow()).observe(document.documentElement);
-guardOverflow();
-
-/* ---------- 初期状態：閉じる ---------- */
-if(gearBtn && settingsPanel){ closePanel(gearBtn, settingsPanel); }
-if(kbdBtn  && kbdPanel){     closePanel(kbdBtn , kbdPanel);     }
-
-/* ---------- パネルが動的再描画される実装への追従 ---------- */
-const mo = new MutationObserver(()=>{
-  if(!document.body.contains(settingsPanel)){ settingsPanel = findPanel(["settingsPanel","panel_settings"], "設定"); settingsPanel && swallowInside(settingsPanel); setupPxMm(settingsPanel); }
-  if(!document.body.contains(kbdPanel)){ kbdPanel = findPanel(["kbdPanel","panel_kbd"], "キーボード"); kbdPanel && swallowInside(kbdPanel); setupPtPx(kbdPanel); }
-});
-mo.observe(document.documentElement, {childList:true, subtree:true});
-})();
-</script>
+</body></html>
