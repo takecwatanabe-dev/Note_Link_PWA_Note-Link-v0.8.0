@@ -76,6 +76,347 @@
   }
   .btn:hover,.btn-close:hover{background:#2a2a2a}
 </style>
+  <script>
+/*!
+ * Note Link v0.7.2-compat hotfix
+ * 目的：UIは変えずに「ツールが反応しない／直線プレビュー／ズーム％表示／mm/pt併記／外側タップで閉じない／消える問題」を復旧
+ * 使い方：index.html の </body> 直前に貼るだけ
+ */
+(function(){
+  /* ====== 安全ガード（二重初期化防止） ====== */
+  if (window.__NL_COMPAT_INIT__) return;
+  window.__NL_COMPAT_INIT__ = true;
+
+  /* ====== 小さなCSSをJSから注入（[hidden]確実に隠す、パネルの上位z-index） ====== */
+  const style = document.createElement('style');
+  style.textContent = `
+    [hidden]{display:none !important;}
+    .nl-overlay{pointer-events:none;position:absolute;left:0;top:0;display:block}
+    .nl-portal{position:fixed;z-index:1000}
+  `;
+  document.head.appendChild(style);
+
+  /* ====== 要素取得（タイトル属性で拾う：UIを変えない） ====== */
+  const $ = s => document.querySelector(s);
+  const btnByTitle = (t) => document.querySelector(`button[title="${t}"]`) || null;
+
+  const els = {
+    workspace: $('#workspace') || document.querySelector('main') || document.body,
+    viewport:  $('#viewport')  || document.querySelector('.viewport') || null,
+    zoomLabel: document.querySelector('.zoom-btn') || Array.from(document.querySelectorAll('button')).find(b => /%$/.test(b.textContent?.trim()||'')),
+    // ツール
+    penBtn:    btnByTitle('ペン'),
+    markerBtn: btnByTitle('マーカー') || btnByTitle('まーかー'),
+    lineBtn:   btnByTitle('直線'),
+    handBtn:   btnByTitle('ハンドル（パン）') || btnByTitle('ハンドル') || btnByTitle('手'),
+    eraserBtn: btnByTitle('消しゴム') || btnByTitle('消す'),
+    gridBtn:   btnByTitle('グリッド表示'),
+    // パネル（存在すれば使う。無ければ何もしない）
+    settingsBtn: btnByTitle('設定'),
+    kbdBtn:      btnByTitle('キーボード'),
+    settingsPanel: document.getElementById('settingsPanel') || null,
+    kbdPanel:      document.getElementById('kbdPanel') || null,
+    penSize:       document.getElementById('penSize') || null,
+    penSizeLabel:  document.getElementById('penSizeLabel') || null,
+    fontSize:      document.getElementById('fontSize') || null,
+    fontSizeLabel: document.getElementById('fontSizeLabel') || null
+  };
+
+  // ビューポート（キャンバス親）
+  if (!els.viewport) {
+    // 既存構造に合わせて自動推測
+    els.viewport = (els.workspace.querySelector('.viewport') || els.workspace);
+  }
+
+  // 既存キャンバスを推測
+  let baseCanvas = els.viewport.querySelector('canvas'); // 最初の<canvas>を描画面とみなす
+  if (!baseCanvas) {
+    baseCanvas = document.createElement('canvas');
+    baseCanvas.width = baseCanvas.height = 1;
+    baseCanvas.style.position = 'absolute';
+    baseCanvas.style.left = baseCanvas.style.top = '0';
+    els.viewport.appendChild(baseCanvas);
+  }
+  const ctx = baseCanvas.getContext('2d');
+
+  // オーバーレイ（直線プレビュー用）— 無ければ作成
+  let overlay = document.getElementById('nlOverlay') || els.viewport.querySelector('#overlay');
+  if (!overlay) {
+    overlay = document.createElement('canvas');
+    overlay.id = 'nlOverlay';
+    overlay.className = 'nl-overlay';
+    els.viewport.appendChild(overlay);
+  }
+  const octx = overlay.getContext('2d');
+
+  /* ====== 状態 ====== */
+  const cssDPI = 96;
+  const app = {
+    tool: 'pen',               // pen | marker | line | hand | eraser
+    grid: false,
+    scale: 1, minScale: .25, maxScale: 4, step: .1,
+    panX: 0, panY: 0,
+    penSizePx: 2,
+    fontPt: 14,
+    strokes: [],               // 世界座標で保持
+    drawing: false,
+    currentStroke: null,
+    lineStart: null,
+    handStart: null,
+    pinch: null
+  };
+
+  /* ====== サイズ合わせ（既存UIは触らない） ====== */
+  function fitCanvas(){
+    const hostRect = els.workspace.getBoundingClientRect();
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    [baseCanvas, overlay].forEach(cv=>{
+      if (cv.width !== Math.floor(hostRect.width*dpr) || cv.height !== Math.floor(hostRect.height*dpr)) {
+        cv.width  = Math.floor(hostRect.width*dpr);
+        cv.height = Math.floor(hostRect.height*dpr);
+        cv.style.width = hostRect.width + 'px';
+        cv.style.height= hostRect.height+ 'px';
+      }
+    });
+    drawAll(); clearOverlay();
+  }
+  function applyView(){
+    if (els.viewport && els.viewport.style) {
+      els.viewport.style.transformOrigin = '0 0';
+      els.viewport.style.transform = `translate(${app.panX}px,${app.panY}px) scale(${app.scale})`;
+    }
+    if (els.zoomLabel) els.zoomLabel.textContent = Math.round(app.scale*100) + '%';
+  }
+
+  /* ====== 単位ラベル（mm/pt 併記） ====== */
+  function pxToMm(px){ return px * 25.4 / cssDPI; }
+  function updatePenLabel(){
+    if (!els.penSizeLabel) return;
+    els.penSizeLabel.textContent = `${app.penSizePx.toFixed(1)} px（${pxToMm(app.penSizePx).toFixed(2)} mm）`;
+  }
+  function updateFontLabel(){
+    if (!els.fontSizeLabel || !els.fontSize) return;
+    const px = app.fontPt * cssDPI / 72;
+    els.fontSizeLabel.textContent = `${app.fontPt} pt（${px.toFixed(1)} px）`;
+  }
+
+  /* ====== 座標変換 ====== */
+  const clear = (c)=>c.clearRect(0,0,c.canvas.width,c.canvas.height);
+  const worldToScreen = (p)=>({x:p.x*app.scale+app.panX, y:p.y*app.scale+app.panY});
+  const screenToWorld = (p)=>({x:(p.x-app.panX)/app.scale, y:(p.y-app.panY)/app.scale});
+
+  /* ====== 描画（世界座標の再描画） ====== */
+  function drawStroke(st){
+    ctx.save();
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    ctx.scale(dpr, dpr);
+    ctx.lineCap='round'; ctx.lineJoin='round';
+    ctx.globalAlpha = st.alpha ?? 1;
+    ctx.globalCompositeOperation = st.comp || 'source-over';
+    ctx.strokeStyle = st.color || '#fff';
+    ctx.fillStyle   = st.color || '#fff';
+    ctx.lineWidth   = st.w || 2;
+
+    if (st.type==='free' || st.type==='marker' || st.type==='eraser'){
+      ctx.beginPath();
+      st.pts.forEach((pt,i)=>{ const s=worldToScreen(pt); if(i===0) ctx.moveTo(s.x,s.y); else ctx.lineTo(s.x,s.y); });
+      ctx.stroke();
+    } else if (st.type==='line'){
+      ctx.beginPath();
+      const a=worldToScreen(st.a), b=worldToScreen(st.b);
+      ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+    }
+    ctx.restore();
+  }
+  function drawAll(){ clear(ctx); app.strokes.forEach(drawStroke); }
+  function clearOverlay(){ clear(octx); }
+  function drawOverlay(preview){
+    clearOverlay(); if (!preview) return;
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    octx.save(); octx.scale(dpr,dpr);
+    octx.lineCap='round'; octx.lineJoin='round';
+    octx.strokeStyle='#7ec8ff'; octx.globalAlpha=.9; octx.setLineDash([6,6]);
+    octx.lineWidth = app.penSizePx;
+    if (preview.type==='line'){
+      const a=worldToScreen(preview.a), b=worldToScreen(preview.b);
+      octx.beginPath(); octx.moveTo(a.x,a.y); octx.lineTo(b.x,b.y); octx.stroke();
+      // 角度注記（x正=0°, CCW=+ / CW=-）
+      const ang = Math.atan2(preview.b.y-preview.a.y, preview.b.x-preview.a.x) * 180 / Math.PI;
+      const mid = {x:(a.x+b.x)/2, y:(a.y+b.y)/2};
+      octx.setLineDash([]);
+      octx.font='12px system-ui,sans-serif';
+      octx.strokeStyle='rgba(0,0,0,.6)'; octx.lineWidth=3; octx.strokeText(ang.toFixed(1)+'°', mid.x+8, mid.y-8);
+      octx.fillStyle='#fff'; octx.fillText(ang.toFixed(1)+'°', mid.x+8, mid.y-8);
+    }
+    octx.restore();
+  }
+
+  /* ====== 入力処理（既存UIはそのまま） ====== */
+  function setTool(t){
+    app.tool = t;
+    // aria-pressed 同期（ボタンがあれば）
+    [['pen','penBtn'],['marker','markerBtn'],['line','lineBtn'],['hand','handBtn'],['eraser','eraserBtn']].forEach(([name,key])=>{
+      if (els[key]) els[key].setAttribute('aria-pressed', name===t ? 'true' : 'false');
+    });
+  }
+
+  function beginDraw(world){
+    app.drawing = true;
+    if (app.tool==='pen' || app.tool==='marker' || app.tool==='eraser'){
+      const comp = app.tool==='eraser' ? 'destination-out' : 'source-over';
+      const alpha= app.tool==='marker' ? 0.6 : 1;
+      app.currentStroke = {type: app.tool==='eraser'?'eraser': (app.tool==='marker'?'marker':'free'),
+                           pts:[world], w: app.penSizePx, color:'#fff', alpha, comp};
+    } else if (app.tool==='line'){
+      app.lineStart = world;
+    } else if (app.tool==='hand'){
+      app.handStart = {x:world.x, y:world.y, panX:app.panX, panY:app.panY};
+    }
+  }
+  function moveDraw(world){
+    if (!app.drawing) return;
+    if (app.tool==='pen' || app.tool==='marker' || app.tool==='eraser'){
+      app.currentStroke.pts.push(world);
+      // 軽い平滑化（段々の線抑制）
+      const pts = app.currentStroke.pts;
+      if (pts.length>=3){ const n=pts.length, p0=pts[n-3], p1=pts[n-2], p2=pts[n-1]; p1.x=(p0.x+p1.x+p2.x)/3; p1.y=(p0.y+p1.y+p2.y)/3; }
+      drawAll(); clearOverlay();
+    } else if (app.tool==='line'){
+      drawAll(); drawOverlay({type:'line', a:app.lineStart, b:world});
+    } else if (app.tool==='hand'){
+      const dx = (world.x - app.handStart.x) * app.scale;
+      const dy = (world.y - app.handStart.y) * app.scale;
+      app.panX = app.handStart.panX + dx;
+      app.panY = app.handStart.panY + dy;
+      applyView();
+    }
+  }
+  function endDraw(world){
+    if (!app.drawing) return;
+    if (app.tool==='pen' || app.tool==='marker' || app.tool==='eraser'){
+      app.strokes.push(app.currentStroke); app.currentStroke=null; saveSnapshot();
+    } else if (app.tool==='line'){
+      app.strokes.push({type:'line', a:app.lineStart, b:world, w:app.penSizePx, color:'#fff', alpha:1});
+      app.lineStart=null; clearOverlay(); saveSnapshot();
+    }
+    app.drawing = false;
+  }
+
+  // 入力イベント（既存のを壊さないよう workspace に限定）
+  function getPt(e){
+    if (e.touches && e.touches[0]) return {x:e.touches[0].clientX, y:e.touches[0].clientY};
+    if (e.changedTouches && e.changedTouches[0]) return {x:e.changedTouches[0].clientX, y:e.changedTouches[0].clientY};
+    return {x:e.clientX, y:e.clientY};
+  }
+  els.workspace.addEventListener('mousedown', (e)=>beginDraw(screenToWorld(getPt(e))));
+  window.addEventListener('mousemove', (e)=>{ if (app.drawing) moveDraw(screenToWorld(getPt(e))); });
+  window.addEventListener('mouseup',   (e)=>{ if (app.drawing) endDraw(screenToWorld(getPt(e))); });
+  els.workspace.addEventListener('touchstart', (e)=>{ if(e.touches.length===1){ beginDraw(screenToWorld(getPt(e))); } }, {passive:true});
+  els.workspace.addEventListener('touchmove',  (e)=>{ if(app.drawing && e.touches.length===1){ moveDraw(screenToWorld(getPt(e))); } }, {passive:true});
+  els.workspace.addEventListener('touchend',   (e)=>{ if(app.drawing){ endDraw(screenToWorld(getPt(e))); } }, {passive:true});
+
+  /* ====== ズーム（Ctrl+ホイール／ピンチ） ====== */
+  function setScale(next, center){
+    app.scale = Math.max(app.minScale, Math.min(app.maxScale, next));
+    if (center){
+      const before = screenToWorld(center);
+      applyView();
+      const after  = screenToWorld(center);
+      app.panX += (after.x - before.x) * app.scale;
+      app.panY += (after.y - before.y) * app.scale;
+    }
+    applyView();
+  }
+  els.workspace.addEventListener('wheel', (e)=>{
+    if (!e.ctrlKey) return;
+    e.preventDefault();
+    const delta = -Math.sign(e.deltaY) * app.step;
+    setScale(app.scale + delta, {x:e.clientX, y:e.clientY});
+  }, {passive:false});
+
+  els.workspace.addEventListener('touchstart', (e)=>{
+    if (e.touches.length===2){
+      const [a,b]=e.touches, dx=b.clientX-a.clientX, dy=b.clientY-a.clientY;
+      app.pinch = {d:Math.hypot(dx,dy), cx:(a.clientX+b.clientX)/2, cy:(a.clientY+b.clientY)/2, startScale:app.scale};
+    }
+  }, {passive:true});
+  els.workspace.addEventListener('touchmove', (e)=>{
+    if (app.pinch && e.touches.length===2){
+      const [a,b]=e.touches, dx=b.clientX-a.clientX, dy=b.clientY-a.clientY;
+      const d = Math.hypot(dx,dy);
+      setScale(app.pinch.startScale * (d/app.pinch.d), {x:(a.clientX+b.clientX)/2, y:(a.clientY+b.clientY)/2});
+    }
+  }, {passive:true});
+  els.workspace.addEventListener('touchend', ()=>{ if (app.pinch && event.touches.length<2) app.pinch=null; }, {passive:true});
+
+  /* ====== パネル：外側タップでは閉じない（既存UIのまま） ====== */
+  function bindPanelToggle(btn, panel){
+    if (!btn || !panel) return;
+    btn.addEventListener('click', ()=>{
+      const open = btn.getAttribute('aria-pressed')==='true';
+      btn.setAttribute('aria-pressed', open?'false':'true');
+      if (open) panel.setAttribute('hidden','');
+      else panel.removeAttribute('hidden');
+    }, {passive:true});
+    // 内側クリックは伝播停止（誤閉防止）
+    ['click','mousedown','touchstart'].forEach(t=>panel.addEventListener(t, e=>e.stopPropagation(), {passive:true}));
+    // ここでは外側クリックで閉じる処理を置かない
+  }
+  bindPanelToggle(els.settingsBtn, els.settingsPanel);
+  bindPanelToggle(els.kbdBtn, els.kbdPanel);
+
+  /* ====== コントロール：mm/pt併記だけ追加 ====== */
+  if (els.penSize){
+    els.penSize.addEventListener('input', ()=>{ app.penSizePx = parseFloat(els.penSize.value); updatePenLabel(); }, {passive:true});
+    updatePenLabel();
+  }
+  if (els.fontSize){
+    els.fontSize.addEventListener('input', ()=>{ app.fontPt = parseInt(els.fontSize.value||'14',10); updateFontLabel(); }, {passive:true});
+    updateFontLabel();
+  }
+
+  /* ====== ツールボタンの動作（UIはそのまま） ====== */
+  if (els.penBtn)    els.penBtn.addEventListener('click', ()=>setTool('pen'),    {passive:true});
+  if (els.markerBtn) els.markerBtn.addEventListener('click', ()=>setTool('marker'), {passive:true});
+  if (els.lineBtn)   els.lineBtn.addEventListener('click', ()=>setTool('line'),   {passive:true});
+  if (els.handBtn)   els.handBtn.addEventListener('click', ()=>setTool('hand'),   {passive:true});
+  if (els.eraserBtn) els.eraserBtn.addEventListener('click', ()=>setTool('eraser'),{passive:true});
+  if (els.gridBtn)   els.gridBtn.addEventListener('click', ()=>{ app.grid = !app.grid; els.gridBtn.setAttribute('aria-pressed', app.grid?'true':'false'); }, {passive:true});
+
+  /* ====== IndexedDB：タブ復帰でも消えない ====== */
+  const DB='notelink-db', STORE='doc', KEY='latest';
+  function idbOpen(){return new Promise((ok,ng)=>{const r=indexedDB.open(DB,1);
+    r.onupgradeneeded=e=>{const db=e.target.result; if(!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE);};
+    r.onsuccess=()=>ok(r.result); r.onerror=()=>ng(r.error);});}
+  async function idbSet(v){try{const db=await idbOpen(); const tx=db.transaction(STORE,'readwrite'); tx.objectStore(STORE).put(v,KEY);
+    await new Promise((ok,ng)=>{tx.oncomplete=ok; tx.onerror=()=>ng(tx.error)}); db.close();}catch{}}
+  async function idbGet(){try{const db=await idbOpen(); const tx=db.transaction(STORE,'readonly'); const req=tx.objectStore(STORE).get(KEY);
+    const v=await new Promise((ok,ng)=>{req.onsuccess=()=>ok(req.result); req.onerror=()=>ng(req.error)}); db.close(); return v;}catch{return null}}
+  function saveSnapshot(){ idbSet(JSON.stringify({strokes:app.strokes, scale:app.scale, panX:app.panX, panY:app.panY, penSizePx:app.penSizePx, fontPt:app.fontPt})); }
+  async function restoreSnapshot(){
+    const raw = await idbGet(); if (!raw) return;
+    try{ const s=JSON.parse(raw);
+      app.strokes=s.strokes||[]; app.scale=s.scale??1; app.panX=s.panX??0; app.panY=s.panY??0;
+      app.penSizePx=s.penSizePx??2; if (els.penSize) els.penSize.value = app.penSizePx;
+      app.fontPt=s.fontPt??14; if (els.fontSize) els.fontSize.value = app.fontPt;
+      updatePenLabel(); updateFontLabel(); applyView(); drawAll();
+    }catch{}
+  }
+  document.addEventListener('visibilitychange', ()=>{ if (document.visibilityState==='hidden') saveSnapshot(); });
+  window.addEventListener('pagehide',  saveSnapshot);
+  window.addEventListener('pageshow',  restoreSnapshot);
+
+  /* ====== リサイズ・初期化 ====== */
+  window.addEventListener('resize', fitCanvas);
+  function init(){
+    fitCanvas();
+    applyView();
+    setTool('pen');
+    restoreSnapshot();
+  }
+  init();
+})();
+</script>
 </head>
 <body>
 <div class="app">
