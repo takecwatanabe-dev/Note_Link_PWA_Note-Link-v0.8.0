@@ -3,18 +3,18 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover" />
-<title>Note Link v0.8.1 / No.07</title>
+<title>Note Link v0.7.2-compat / No.08</title>
 <meta name="theme-color" content="#0a0a0a" />
 <style>
   :root{
     --bg-900:#0a0a0a; --bg-850:#121212; --bg-800:#1f1f1f;
     --bd-700:#3a3a3a; --text-100:#f5f5f5; --text-300:#cfcfcf;
-    --green:#22c55e; --shadow:0 10px 24px rgba(0,0,0,.35), 0 2px 8px rgba(0,0,0,.25);
+    --accent:#22c55e; --shadow:0 10px 24px rgba(0,0,0,.35), 0 2px 8px rgba(0,0,0,.25);
     --panel-w:320px;
   }
   *{box-sizing:border-box}
   html,body{height:100%}
-  [hidden]{display:none !important;} /* ← これで初期チラ見え防止 */
+  [hidden]{display:none!important}
   body{
     margin:0; color:var(--text-100); background:var(--bg-900);
     font-family:system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", Arial, sans-serif;
@@ -24,29 +24,31 @@
   .app{display:grid; grid-template-rows:auto 1fr; height:100%;
        padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom);}
 
-  /* ===== Toolbar / Title ===== */
+  /* ===== Toolbar（v0.7の見た目を維持） ===== */
   .toolbar{
     position:relative; z-index:10; width:100%;
-    background:rgba(10,10,10,.85); border-bottom:1px solid var(--bd-700);
+    background:#0c0c0c; border-bottom:1px solid var(--bd-700);
     -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
   }
   .toolbar-row{
     display:flex; align-items:center; gap:8px; padding:8px;
-    overflow-x:auto; overflow-y:visible; /* ← 縦方向は切らない */
-    white-space:nowrap;
+    overflow-x:auto; overflow-y:visible; white-space:nowrap;
   }
-  .title{font-weight:800; font-size:1.125rem; margin-right:12px; flex:0 0 auto;}
+  .title{font-weight:800; font-size:1rem; margin-right:12px; flex:0 0 auto;} /* v0.7相当 */
   .tool-btn{
-    flex:0 0 auto; width:44px; height:44px; border-radius:12px;
-    border:1px solid transparent; background:transparent; color:var(--text-100);
+    flex:0 0 auto; width:40px; height:40px; /* v0.7相当（44pxから戻す） */
+    border-radius:10px; border:1px solid transparent; background:transparent; color:var(--text-100);
     display:grid; place-items:center; cursor:pointer; user-select:none;
     transition:background .15s ease, border-color .15s ease, transform .02s ease;
   }
-  .tool-btn:hover{background:#161616} .tool-btn:active{transform:scale(.98)}
-  .tool-btn.is-open{border:2px solid var(--green)}
-  .icon{width:28px; height:28px; display:block}
+  .tool-btn:hover{background:#161616}
+  .tool-btn:active{transform:scale(.98)}
+  .tool-btn.is-open{border:2px solid var(--accent)} /* 設定/キーボードのみ使用 */
+  .icon{width:24px; height:24px; display:block}     /* v0.7の24pxへ戻す */
 
-  /* ===== Workspace / Viewport ===== */
+  .zoom-btn{min-width:56px; font-weight:700}        /* 「100%」表示だけ（UI変更なし） */
+
+  /* ===== Workspace（ズームはCSS、見た目はv0.7のまま） ===== */
   .workspace{position:relative; width:100%; height:100%; background:var(--bg-850); overflow:hidden}
   .workspace.grid-on{
     background:
@@ -57,10 +59,9 @@
   canvas{display:block; position:absolute; left:0; top:0}
   #overlay{pointer-events:none}
 
-  /* ===== Panel（表示は“固定配置”に切替） ===== */
+  /* ===== Panels（見た目はv0.7相当・位置はボタン直下） ===== */
   .panel{
-    position:fixed; /* ← ここが v0.8.0 からの重要修正 */
-    width:var(--panel-w);
+    position:fixed; width:var(--panel-w);
     border-radius:12px; background:var(--bg-800); border:1px solid var(--bd-700);
     box-shadow:var(--shadow); z-index:1000;
   }
@@ -74,15 +75,15 @@
     background:transparent; color:var(--text-100); padding:10px 12px; cursor:pointer;
   }
   .btn:hover,.btn-close:hover{background:#2a2a2a}
-  .zoom-btn{min-width:64px; font-weight:700}
 </style>
 </head>
 <body>
 <div class="app">
   <header class="toolbar" role="toolbar" aria-label="Note Link toolbar">
     <div class="toolbar-row" id="toolbarRow">
-      <div class="title" id="appTitle">Note Link v0.8.1 / No.07</div>
+      <div class="title" id="appTitle">Note Link v0.7.2-compat / No.08</div>
 
+      <!-- 並び・見た目はv0.7準拠：ペン／マーカー／直線／消しゴム／グリッド／ズーム％／キーボード／設定 -->
       <button class="tool-btn" id="penBtn" title="ペン" aria-pressed="true">
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25Zm18-11.5a1 1 0 0 0 0-1.41l-1.59-1.59a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75L21 5.75Z" fill="currentColor"/></svg>
       </button>
@@ -90,29 +91,26 @@
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 15l6 6 12-12-6-6L3 15Zm0 0l-1 5 5-1" fill="currentColor"/></svg>
       </button>
       <button class="tool-btn" id="lineBtn" title="直線" aria-pressed="false">
-        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20 L20 4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20 L20 4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>
       </button>
-      <button class="tool-btn" id="handBtn" title="ハンドル（パン）" aria-pressed="false">
-        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M7 11V6a1 1 0 1 1 2 0v5M10 11V5a1 1 0 1 1 2 0v6M13 11V4a1 1 0 1 1 2 0v7M16 12V7a1 1 0 1 1 2 0v7M6 12c-2 0-2 2-2 3 0 2 1 6 6 6h3c3 0 5-2 5-5v-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
+      <button class="tool-btn" id="eraserBtn" title="消しゴム" aria-pressed="false">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M16.24 3.56a2 2 0 0 1 2.83 0l1.37 1.37a2 2 0 0 1 0 2.83L9.66 18.54a2 2 0 0 1-1.41.59H5.41a2 2 0 0 1-1.41-.59l-1.37-1.37a2 2 0 0 1 0-2.83L16.24 3.56Z" fill="currentColor"/></svg>
       </button>
       <button class="tool-btn" id="gridBtn" title="グリッド表示" aria-pressed="false">
-        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h18v18H3zM9 3v18M15 3v18M3 9h18M3 15h18" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h18v18H3zM9 3v18M15 3v18M3 9h18M3 15h18" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
       </button>
 
+      <!-- ％表示（クリックで100%リセットのみ） -->
       <button class="tool-btn zoom-btn" id="zoomDisplay" title="ズーム率">100%</button>
 
-      <!-- キーボード -->
+      <!-- キーボード（pt併記、外側タップで閉じない） -->
       <button class="tool-btn" id="kbdBtn" title="キーボード" aria-pressed="false" aria-haspopup="dialog" aria-controls="kbdPanel">
-        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v12H3z M5 9h2 M8 9h2 M11 9h2 M14 9h2 M17 9h2 M5 12h2 M8 12h2 M11 12h2 M14 12h2 M17 12h2 M5 15h10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v12H3z M5 9h2 M8 9h2 M11 9h2 M14 9h2 M17 9h2 M5 12h2 M8 12h2 M11 12h2 M14 12h2 M17 12h2 M5 15h10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
       </button>
 
-      <!-- 設定 -->
+      <!-- 設定（mm併記、開いている間のみ緑枠） -->
       <button class="tool-btn" id="settingsBtn" title="設定" aria-pressed="false" aria-haspopup="dialog" aria-controls="settingsPanel">
-        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M12 8a4 4 0 1 1 0 8 4 4 0 0 1 0-8Zm8.9 3a8.3 8.3 0 0 0-.1-1l2-1.5-1.8-3.2-2.4.5a7.7 7.7 0 0 0-1.5-.9l-.4-2.4H7.3l-.4 2.4a7.7 7.7 0 0 0-1.5.9l-2.4-.5L1.2 8.1 3.2 9.6a8.3 8.3 0 0 0 0 2L1.2 13l1.8 3.2 2.4-.5c.5.4 1 .7 1.5.9l.4 2.4h6.4l.4-2.4c.5-.2 1-.5 1.5-.9l2.4.5 1.8-3.2-2-1.5c.1-.3.1-.7.1-1Z" fill="none" stroke="currentColor" stroke-width="2"/>
-        </svg>
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8a4 4 0 1 1 0 8 4 4 0 0 1 0-8Zm8.9 3a8.3 8.3 0 0 0-.1-1l2-1.5-1.8-3.2-2.4.5a7.7 7.7 0 0 0-1.5-.9l-.4-2.4H7.3l-.4 2.4a7.7 7.7 0 0 0-1.5.9l-2.4-.5L1.2 8.1 3.2 9.6a8.3 8.3 0 0 0 0 2L1.2 13l1.8 3.2 2.4-.5c.5.4 1 .7 1.5.9l.4 2.4h6.4l.4-2.4c.5-.2 1-.5 1.5-.9l2.4.5 1.8-3.2-2-1.5c.1-.3.1-.7.1-1Z" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
       </button>
     </div>
   </header>
@@ -126,7 +124,7 @@
   </main>
 </div>
 
-<!-- ===== Panels（body直下。固定配置で表示） ===== -->
+<!-- Panels（body直下。位置はボタンの直下に置くがUIの見え方はv0.7準拠） -->
 <div class="panel" id="kbdPanel" role="dialog" aria-modal="false" hidden>
   <div class="panel-inner" onclick="event.stopPropagation()" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()">
     <h3>キーボード設定</h3>
@@ -147,162 +145,175 @@
       <input type="range" id="penSize" min="1" max="20" step="0.5" value="2" />
     </div>
     <div class="row"><span id="penSizeLabel">2.0 px（0.53 mm）</span></div>
-    <div class="row"><button type="button" class="btn" id="fullscreenBtn">全画面にする</button></div>
     <button type="button" class="btn-close" id="settingsClose">閉じる</button>
   </div>
 </div>
 
 <script>
-/* ===== 基本状態 ===== */
+/* ===== 基本状態（v0.7のUIのまま、内部だけ堅牢化） ===== */
 const cssDPI=96, $=q=>document.querySelector(q);
 const els={
-  title:$('#appTitle'), toolbarRow:$('#toolbarRow'),
   workspace:$('#workspace'), viewport:$('#viewport'),
   canvas:$('#canvas'), overlay:$('#overlay'),
-  penBtn:$('#penBtn'), markerBtn:$('#markerBtn'), lineBtn:$('#lineBtn'), handBtn:$('#handBtn'),
+  penBtn:$('#penBtn'), markerBtn:$('#markerBtn'), lineBtn:$('#lineBtn'), eraserBtn:$('#eraserBtn'), handBtn:null, // v0.7では手は別UIなら未使用
   gridBtn:$('#gridBtn'), zoomDisplay:$('#zoomDisplay'),
   settingsBtn:$('#settingsBtn'), settingsPanel:$('#settingsPanel'), settingsClose:$('#settingsClose'),
   kbdBtn:$('#kbdBtn'), kbdPanel:$('#kbdPanel'), kbdClose:$('#kbdClose'),
   penSize:$('#penSize'), penSizeLabel:$('#penSizeLabel'),
-  fontSize:$('#fontSize'), fontSizeLabel:$('#fontSizeLabel'),
-  fullscreenBtn:$('#fullscreenBtn')
+  fontSize:$('#fontSize'), fontSizeLabel:$('#fontSizeLabel')
 };
 const app={tool:'pen', grid:false, scale:1, minScale:.25, maxScale:4, step:.1, panX:0, panY:0,
-  penSizePx:2, fontPt:14, strokes:[], drawing:false, currentStroke:null, lineStart:null, pinch:null};
+  penSizePx:2, fontPt:14, strokes:[], drawing:false, currentStroke:null, lineStart:null, pinch:null, erasing:false};
 
-/* ===== キャンバス・描画 ===== */
 const ctx=els.canvas.getContext('2d'), octx=els.overlay.getContext('2d');
+
+/* ===== レイアウト（v0.7の見た目を維持） ===== */
 function fitCanvas(){const r=els.workspace.getBoundingClientRect(), d=Math.max(1,devicePixelRatio||1);
   [els.canvas,els.overlay].forEach(cv=>{const need=cv.width!==Math.floor(r.width*d)||cv.height!==Math.floor(r.height*d);
     if(need){cv.width=Math.floor(r.width*d); cv.height=Math.floor(r.height*d); cv.style.width=r.width+'px'; cv.style.height=r.height+'px';}});
   drawAll(); clearOverlay();}
 function applyView(){els.viewport.style.transform=`translate(${app.panX}px,${app.panY}px) scale(${app.scale})`;
   els.zoomDisplay.textContent=Math.round(app.scale*100)+'%';}
-function pxToMm(px){return px*25.4/cssDPI} function pxToPt(px){return px*72/cssDPI}
+
+/* ===== 単位表示 ===== */
+function pxToMm(px){return px*25.4/ cssDPI} function pxToPt(px){return px*72/cssDPI}
 function updatePenLabel(){els.penSizeLabel.textContent=`${app.penSizePx.toFixed(1)} px（${(pxToMm(app.penSizePx)).toFixed(2)} mm）`}
 function updateFontLabel(){const px=app.fontPt*cssDPI/72; els.fontSizeLabel.textContent=`${app.fontPt} pt（${px.toFixed(1)} px）`}
+
+/* ===== 不揮発描画 ===== */
 function clear(ctx2){ctx2.clearRect(0,0,ctx2.canvas.width,ctx2.canvas.height)}
 function worldToScreen(p){return{x:p.x*app.scale+app.panX,y:p.y*app.scale+app.panY}}
 function screenToWorld(p){return{x:(p.x-app.panX)/app.scale,y:(p.y-app.panY)/app.scale}}
-function drawStroke(st){ctx.save();const d=Math.max(1,devicePixelRatio||1);ctx.scale(d,d);ctx.lineCap='round';ctx.lineJoin='round';
-  ctx.globalAlpha=st.alpha??1;ctx.globalCompositeOperation=st.comp||'source-over';ctx.strokeStyle=st.color||'#fff';ctx.fillStyle=st.color||'#fff';ctx.lineWidth=st.w||2;
-  if(st.type==='free'||st.type==='marker'){ctx.beginPath();st.pts.forEach((pt,i)=>{const s=worldToScreen(pt);if(i===0)ctx.moveTo(s.x,s.y);else ctx.lineTo(s.x,s.y);});ctx.stroke();}
-  else if(st.type==='line'){ctx.beginPath();const a=worldToScreen(st.a), b=worldToScreen(st.b);ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();}
+function drawStroke(st){ctx.save();const d=Math.max(1,devicePixelRatio||1);ctx.scale(d,d);
+  ctx.lineCap='round';ctx.lineJoin='round';ctx.globalAlpha=st.alpha??1;
+  ctx.globalCompositeOperation=st.comp||'source-over';
+  ctx.strokeStyle=st.color||'#fff';ctx.fillStyle=st.color||'#fff';ctx.lineWidth=st.w||2;
+  if(st.type==='free'||st.type==='marker'){
+    ctx.beginPath(); st.pts.forEach((pt,i)=>{const s=worldToScreen(pt); if(i===0)ctx.moveTo(s.x,s.y); else ctx.lineTo(s.x,s.y);});
+    ctx.stroke();
+  }else if(st.type==='line'){
+    const a=worldToScreen(st.a), b=worldToScreen(st.b);
+    ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+  }else if(st.type==='erase'){
+    ctx.save(); ctx.globalCompositeOperation='destination-out';
+    ctx.lineWidth=st.w; ctx.beginPath();
+    st.pts.forEach((pt,i)=>{const s=worldToScreen(pt); if(i===0)ctx.moveTo(s.x,s.y); else ctx.lineTo(s.x,s.y);});
+    ctx.stroke(); ctx.restore();
+  }
   ctx.restore();}
-function drawAll(){clear(ctx);app.strokes.forEach(drawStroke);}
+function drawAll(){clear(ctx); app.strokes.forEach(drawStroke);}
 function clearOverlay(){clear(octx)}
 function drawOverlay(pre){clearOverlay(); if(!pre)return; const d=Math.max(1,devicePixelRatio||1);octx.save();octx.scale(d,d);
   octx.lineCap='round';octx.lineJoin='round';octx.strokeStyle='#7ec8ff';octx.globalAlpha=.9;octx.setLineDash([6,6]);octx.lineWidth=app.penSizePx;
-  if(pre.type==='line'){const a=worldToScreen(pre.a),b=worldToScreen(pre.b);octx.beginPath();octx.moveTo(a.x,a.y);octx.lineTo(b.x,b.y);octx.stroke();
-    const dx=pre.b.x-pre.a.x, dy=pre.b.y-pre.a.y, ang=Math.atan2(dy,dx)*180/Math.PI; const m={x:(a.x+b.x)/2,y:(a.y+b.y)/2};octx.setLineDash([]);
-    octx.font='12px system-ui,sans-serif';octx.fillStyle='#fff';octx.strokeStyle='rgba(0,0,0,.6)';octx.lineWidth=3;octx.strokeText(ang.toFixed(1)+'°',m.x+8,m.y-8);octx.fillText(ang.toFixed(1)+'°',m.x+8,m.y-8);}
+  if(pre.type==='line'){const a=worldToScreen(pre.a),b=worldToScreen(pre.b);
+    octx.beginPath();octx.moveTo(a.x,a.y);octx.lineTo(b.x,b.y);octx.stroke();
+    // 角度：x正=0°, CCW=＋, CW=－
+    const dx=pre.b.x-pre.a.x, dy=pre.b.y-pre.a.y, ang=Math.atan2(dy,dx)*180/Math.PI;
+    const m={x:(a.x+b.x)/2,y:(a.y+b.y)/2};octx.setLineDash([]);
+    octx.font='12px system-ui,sans-serif';octx.fillStyle='#fff';octx.strokeStyle='rgba(0,0,0,.6)';octx.lineWidth=3;
+    octx.strokeText(ang.toFixed(1)+'°', m.x+8, m.y-8); octx.fillText(ang.toFixed(1)+'°', m.x+8, m.y-8);
+  }
   octx.restore();}
 
-/* ===== 入力処理 ===== */
-function setTool(n){app.tool=n; [els.penBtn,els.markerBtn,els.lineBtn,els.handBtn].forEach(b=>b.setAttribute('aria-pressed','false'));
-  ({pen:els.penBtn,marker:els.markerBtn,line:els.lineBtn,hand:els.handBtn}[n]).setAttribute('aria-pressed','true');}
-function beginDraw(w){app.drawing=true;
-  if(app.tool==='pen'||app.tool==='marker'){app.currentStroke={type:app.tool==='marker'?'marker':'free', pts:[w], w:app.penSizePx, color:'#fff', alpha:app.tool==='marker'?0.6:1};}
-  else if(app.tool==='line'){app.lineStart=w;} else if(app.tool==='hand'){app.handStart={x:w.x,y:w.y,panX:app.panX,panY:app.panY};}}
-function moveDraw(w){if(!app.drawing)return;
-  if(app.tool==='pen'||app.tool==='marker'){app.currentStroke.pts.push(w); if(app.currentStroke.pts.length>=3){const n=app.currentStroke.pts.length,p0=app.currentStroke.pts[n-3],p1=app.currentStroke.pts[n-2],p2=app.currentStroke.pts[n-1];p1.x=(p0.x+p1.x+p2.x)/3;p1.y=(p0.y+p1.y+p2.y)/3;}
-    drawAll(); clearOverlay();}
-  else if(app.tool==='line'){drawAll(); drawOverlay({type:'line',a:app.lineStart,b:w});}
-  else if(app.tool==='hand'){const dx=(w.x-app.handStart.x)*app.scale, dy=(w.y-app.handStart.y)*app.scale; app.panX=app.handStart.panX+dx; app.panY=app.handStart.panY+dy; applyView();}}
-function endDraw(w){if(!app.drawing)return;
-  if(app.tool==='pen'||app.tool==='marker'){app.strokes.push(app.currentStroke); app.currentStroke=null; saveSnap();}
-  else if(app.tool==='line'){app.strokes.push({type:'line',a:app.lineStart,b:w,w:app.penSizePx,color:'#fff',alpha:1}); app.lineStart=null; clearOverlay(); saveSnap();}
-  app.drawing=false;}
+/* ===== 入力処理（ペン／マーカー／直線／消しゴム／パンはブラウザ標準スクロールに任せる） ===== */
+function setTool(n){
+  app.tool=n;
+  [els.penBtn,els.markerBtn,els.lineBtn,els.eraserBtn].forEach(b=>b && b.setAttribute('aria-pressed','false'));
+  ({pen:els.penBtn, marker:els.markerBtn, line:els.lineBtn, eraser:els.eraserBtn}[n]?.setAttribute('aria-pressed','true'));
+}
+function beginDraw(w){
+  app.drawing=true;
+  if(app.tool==='pen' || app.tool==='marker'){
+    app.currentStroke={type:app.tool==='marker'?'marker':'free', pts:[w], w:app.penSizePx, color:'#fff', alpha: app.tool==='marker'?0.6:1};
+  }else if(app.tool==='line'){
+    app.lineStart=w;
+  }else if(app.tool==='eraser'){
+    app.currentStroke={type:'erase', pts:[w], w: Math.max(8, app.penSizePx*2)};
+  }
+}
+function moveDraw(w){
+  if(!app.drawing) return;
+  if(app.tool==='pen' || app.tool==='marker'){
+    app.currentStroke.pts.push(w);
+    // 軽い平滑化（段々線対策）
+    if(app.currentStroke.pts.length>=3){
+      const n=app.currentStroke.pts.length, p0=app.currentStroke.pts[n-3], p1=app.currentStroke.pts[n-2], p2=app.currentStroke.pts[n-1];
+      p1.x=(p0.x+p1.x+p2.x)/3; p1.y=(p0.y+p1.y+p2.y)/3;
+    }
+    drawAll();
+  }else if(app.tool==='line'){
+    drawAll(); drawOverlay({type:'line', a:app.lineStart, b:w});
+  }else if(app.tool==='eraser'){
+    app.currentStroke.pts.push(w); drawAll();  // 消しゴムは即時適用に見せる
+  }
+}
+function endDraw(w){
+  if(!app.drawing) return;
+  if(app.tool==='pen' || app.tool==='marker'){
+    app.strokes.push(app.currentStroke);
+  }else if(app.tool==='line'){
+    app.strokes.push({type:'line', a:app.lineStart, b:w, w:app.penSizePx, color:'#fff', alpha:1});
+    clearOverlay();
+  }else if(app.tool==='eraser'){
+    app.strokes.push(app.currentStroke);
+  }
+  app.currentStroke=null; app.lineStart=null; app.drawing=false; saveSnap(); drawAll();
+}
 function getPt(e){if(e.touches&&e.touches[0])return{x:e.touches[0].clientX,y:e.touches[0].clientY}; if(e.changedTouches&&e.changedTouches[0])return{x:e.changedTouches[0].clientX,y:e.changedTouches[0].clientY}; return{x:e.clientX,y:e.clientY};}
 
-/* ===== ズーム（ピンチ＆Ctrl+ホイール） ===== */
-function setScale(next,center){const old=app.scale; app.scale=Math.max(app.minScale,Math.min(app.maxScale,next));
-  if(center){const before=screenToWorld(center); applyView(); const after=screenToWorld(center); app.panX+=(after.x-before.x)*app.scale; app.panY+=(after.y-before.y)*app.scale;}
+/* ===== ズーム（UIは％表示のみ。操作はピンチ＆Ctrl+ホイール。クリックで100%へ） ===== */
+function setScale(next,center){app.scale=Math.max(app.minScale,Math.min(app.maxScale,next));
+  if(center){const before=screenToWorld(center); applyView(); const after=screenToWorld(center);
+    app.panX+=(after.x-before.x)*app.scale; app.panY+=(after.y-before.y)*app.scale;}
   applyView();}
 function onWheel(e){if(!e.ctrlKey)return; e.preventDefault(); const d=-Math.sign(e.deltaY)*app.step; setScale(app.scale+d,{x:e.clientX,y:e.clientY});}
-function onTouchStart(e){if(e.touches.length===2){e.preventDefault(); const[a,b]=e.touches,dx=b.clientX-a.clientX,dy=b.clientY-a.clientY;
+function onTouchStart(e){
+  if(e.touches.length===2){e.preventDefault(); const[a,b]=e.touches,dx=b.clientX-a.clientX,dy=b.clientY-a.clientY;
     app.pinch={d:Math.hypot(dx,dy),cx:(a.clientX+b.clientX)/2,cy:(a.clientY+b.clientY)/2,startScale:app.scale};}
-  else if(e.touches.length===1){beginDraw(screenToWorld({x:e.touches[0].clientX,y:e.touches[0].clientY}));}}
-function onTouchMove(e){if(app.pinch&&e.touches.length===2){e.preventDefault(); const[a,b]=e.touches,dx=b.clientX-a.clientX,dy=b.clientY-a.clientY;
+  else if(e.touches.length===1){beginDraw(screenToWorld({x:e.touches[0].clientX,y:e.touches[0].clientY}));}
+}
+function onTouchMove(e){
+  if(app.pinch&&e.touches.length===2){e.preventDefault(); const[a,b]=e.touches,dx=b.clientX-a.clientX,dy=b.clientY-a.clientY;
     const d=Math.hypot(dx,dy); setScale(app.pinch.startScale*(d/app.pinch.d),{x:(a.clientX+b.clientX)/2,y:(a.clientY+b.clientY)/2});}
-  else if(e.touches.length===1&&app.drawing){moveDraw(screenToWorld({x:e.touches[0].clientX,y:e.touches[0].clientY}));}}
+  else if(e.touches.length===1 && app.drawing){moveDraw(screenToWorld({x:e.touches[0].clientX,y:e.touches[0].clientY}));}
+}
 function onTouchEnd(e){if(app.pinch&&e.touches.length<2){app.pinch=null;} if(app.drawing){endDraw(screenToWorld(getPt(e)));}}
+els.zoomDisplay.addEventListener('click', ()=>{ setScale(1); app.panX=0; app.panY=0; applyView(); }, {passive:true});
 
-/* ===== 永続化（IndexedDB） ===== */
+/* ===== 保存復元（タブ移動後も消えない） ===== */
 const DB='notelink-db', STORE='doc', KEY='latest';
-function idbOpen(){return new Promise((ok,ng)=>{const r=indexedDB.open(DB,1); r.onupgradeneeded=ev=>{const db=ev.target.result; if(!db.objectStoreNames.contains(STORE))db.createObjectStore(STORE);}; r.onsuccess=()=>ok(r.result); r.onerror=()=>ng(r.error);});}
-async function idbSet(v){try{const db=await idbOpen(); const tx=db.transaction(STORE,'readwrite'); tx.objectStore(STORE).put(v,KEY);
-  await new Promise((ok,ng)=>{tx.oncomplete=ok; tx.onerror=()=>ng(tx.error)}); db.close();}catch{}}
-async function idbGet(){try{const db=await idbOpen(); const tx=db.transaction(STORE,'readonly'); const req=tx.objectStore(STORE).get(KEY);
-  const v=await new Promise((ok,ng)=>{req.onsuccess=()=>ok(req.result); req.onerror=()=>ng(req.error)}); db.close(); return v;}catch{return null}}
+function idbOpen(){return new Promise((ok,ng)=>{const r=indexedDB.open(DB,1); r.onupgradeneeded=ev=>{const db=ev.target.result; if(!db.objectStoreNames.contains(STORE))db.createObjectStore(STORE)}; r.onsuccess=()=>ok(r.result); r.onerror=()=>ng(r.error);});}
+async function idbSet(v){try{const db=await idbOpen(); const tx=db.transaction(STORE,'readwrite'); tx.objectStore(STORE).put(v,KEY); await new Promise((ok,ng)=>{tx.oncomplete=ok; tx.onerror=()=>ng(tx.error)}); db.close();}catch{}}
+async function idbGet(){try{const db=await idbOpen(); const tx=db.transaction(STORE,'readonly'); const req=tx.objectStore(STORE).get(KEY); const v=await new Promise((ok,ng)=>{req.onsuccess=()=>ok(req.result); req.onerror=()=>ng(req.error)}); db.close(); return v;}catch{return null}}
 function saveSnap(){idbSet(JSON.stringify({strokes:app.strokes,scale:app.scale,panX:app.panX,panY:app.panY,penSizePx:app.penSizePx,fontPt:app.fontPt}))}
 async function restoreSnap(){const raw=await idbGet(); if(!raw)return; try{const s=JSON.parse(raw);
-  app.strokes=s.strokes||[]; app.scale=s.scale??1; app.panX=s.panX??0; app.panY=s.panY??0; app.penSizePx=s.penSizePx??2; els.penSize.value=app.penSizePx;
-  app.fontPt=s.fontPt??14; els.fontSize.value=app.fontPt; updatePenLabel(); updateFontLabel(); applyView(); drawAll();}catch{}}
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')saveSnap()}); window.addEventListener('pagehide',saveSnap); window.addEventListener('pageshow',restoreSnap);
+  app.strokes=s.strokes||[]; app.scale=s.scale??1; app.panX=s.panX??0; app.panY=s.panY??0;
+  app.penSizePx=s.penSizePx??2; els.penSize.value=app.penSizePx;
+  app.fontPt=s.fontPt??14; els.fontSize.value=app.fontPt;
+  updatePenLabel(); updateFontLabel(); applyView(); drawAll();}catch{}}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')saveSnap()});
+window.addEventListener('pagehide', saveSnap);
+window.addEventListener('pageshow', restoreSnap);
 
-/* ===== パネル（外側タップでは閉じない・固定配置） ===== */
+/* ===== パネル（外側タップでは閉じない。位置は“ボタン直下”で見た目はv0.7） ===== */
 function placePanel(panel, trigger){
-  const rect=trigger.getBoundingClientRect();
-  const w=parseInt(getComputedStyle(panel).width || 320,10);
-  const gap=8;
-  let left=Math.max(8, Math.min(rect.right - w, window.innerWidth - w - 8));
-  let top=Math.min(rect.bottom + gap, window.innerHeight - panel.offsetHeight - 8);
+  const r=trigger.getBoundingClientRect(), w=parseInt(getComputedStyle(panel).width||320,10), gap=8;
+  let left=Math.max(8, Math.min(r.left, window.innerWidth - w - 8));
+  let top=Math.min(r.bottom + gap, window.innerHeight - panel.offsetHeight - 8);
   panel.style.left=left+'px'; panel.style.top=Math.max(8, top)+'px';
 }
-function openPanel(btn, panel){
-  btn.setAttribute('aria-pressed','true'); btn.classList.add('is-open');
-  panel.hidden=false; placePanel(panel, btn);
-}
-function closePanel(btn, panel){
-  btn.setAttribute('aria-pressed','false'); btn.classList.remove('is-open');
-  panel.hidden=true;
-}
-function togglePanel(btn, panel){
-  const open=btn.getAttribute('aria-pressed')==='true';
-  if(open) closePanel(btn,panel); else openPanel(btn,panel);
-}
-window.addEventListener('resize', ()=>{
-  if(els.settingsBtn.getAttribute('aria-pressed')==='true') placePanel(els.settingsPanel, els.settingsBtn);
-  if(els.kbdBtn.getAttribute('aria-pressed')==='true') placePanel(els.kbdPanel, els.kbdBtn);
-});
-
-/* ===== フルスクリーン ===== */
-els.fullscreenBtn.addEventListener('click', async ()=>{
-  try{if(!document.fullscreenElement){await document.documentElement.requestFullscreen(); els.fullscreenBtn.textContent='全画面を終了';}
-  else{await document.exitFullscreen(); els.fullscreenBtn.textContent='全画面にする';}}catch{}
-},{passive:true});
+function openPanel(btn, panel){btn.setAttribute('aria-pressed','true'); btn.classList.add('is-open'); panel.hidden=false; placePanel(panel,btn);}
+function closePanel(btn, panel){btn.setAttribute('aria-pressed','false'); btn.classList.remove('is-open'); panel.hidden=true;}
+function togglePanel(btn, panel){const open=btn.getAttribute('aria-pressed')==='true'; open?closePanel(btn,panel):openPanel(btn,panel);}
+window.addEventListener('resize', ()=>{ if(els.settingsBtn.getAttribute('aria-pressed')==='true') placePanel(els.settingsPanel, els.settingsBtn);
+                                        if(els.kbdBtn.getAttribute('aria-pressed')==='true') placePanel(els.kbdPanel, els.kbdBtn); });
 
 /* ===== イベント配線 ===== */
-[els.penBtn,els.markerBtn,els.lineBtn,els.handBtn].forEach((b,i)=>b.addEventListener('click',()=>setTool(['pen','marker','line','hand'][i]),{passive:true}));
-els.gridBtn.addEventListener('click',()=>{app.grid=!app.grid; els.gridBtn.setAttribute('aria-pressed',app.grid?'true':'false'); els.workspace.classList.toggle('grid-on',app.grid);},{passive:true});
+[els.penBtn, els.markerBtn, els.lineBtn, els.eraserBtn].forEach((b,i)=>{
+  const map=['pen','marker','line','eraser']; b.addEventListener('click', ()=>setTool(map[i]), {passive:true});
+});
+els.gridBtn.addEventListener('click', ()=>{app.grid=!app.grid; els.gridBtn.setAttribute('aria-pressed', app.grid?'true':'false'); els.workspace.classList.toggle('grid-on', app.grid);}, {passive:true});
+
 window.addEventListener('resize', fitCanvas);
 els.workspace.addEventListener('wheel', onWheel, {passive:false});
-els.workspace.addEventListener('mousedown', e=>beginDraw(screenToWorld({x:e.clientX,y:e.clientY})));
-window.addEventListener('mousemove', e=>{if(app.drawing)moveDraw(screenToWorld({x:e.clientX,y:e.clientY}))});
-window.addEventListener('mouseup', e=>{if(app.drawing)endDraw(screenToWorld({x:e.clientX,y:e.clientY}))});
-els.workspace.addEventListener('touchstart', onTouchStart, {passive:false});
-els.workspace.addEventListener('touchmove', onTouchMove, {passive:false});
-els.workspace.addEventListener('touchend', onTouchEnd, {passive:false});
-els.workspace.addEventListener('touchcancel', onTouchEnd, {passive:false});
-
-/* Panels */
-els.settingsBtn.addEventListener('click', ()=>togglePanel(els.settingsBtn, els.settingsPanel), {passive:true});
-els.settingsClose.addEventListener('click', ()=>closePanel(els.settingsBtn, els.settingsPanel), {passive:true});
-els.kbdBtn.addEventListener('click', ()=>togglePanel(els.kbdBtn, els.kbdPanel), {passive:true});
-els.kbdClose.addEventListener('click', ()=>closePanel(els.kbdBtn, els.kbdPanel), {passive:true});
-
-/* コントロール */
-els.penSize.addEventListener('input', ()=>{app.penSizePx=parseFloat(els.penSize.value); updatePenLabel();},{passive:true});
-els.fontSize.addEventListener('input', ()=>{app.fontPt=parseInt(els.fontSize.value,10); updateFontLabel();},{passive:true});
-
-/* ===== 初期化 ===== */
-function init(){setTool('pen'); updatePenLabel(); updateFontLabel(); fitCanvas(); applyView();
-  /* 念のため両パネル閉じに初期化（ボタン緑枠の取りこぼし対策） */
-  ['settings','kbd'].forEach(k=>{const b=els[k+'Btn'], p=els[k+'Panel']; b.setAttribute('aria-pressed','false'); b.classList.remove('is-open'); p.hidden=true;});
-  restoreSnap();
-}
-init();
-</script>
-</body>
-</html>
+els.workspace.addEventListener('
