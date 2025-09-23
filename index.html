@@ -51,20 +51,26 @@ header.topbar{
 /* 閉時は中身だけ非表示（幅は不変） */
 .sidebar.collapsed .rail > .tool:not([data-tool="toggle"]){display:none}
 
-/* パネル（v0.7相当の小型スケール） */
+/* パネル：v0.7相当スケール（UI構成はそのまま） */
 .panel{
   position:absolute; z-index:2400; left:70px; top:calc(var(--topbar-h) + 10px);
-  min-width:300px; max-width:340px; padding:10px 14px 12px; border-radius:14px; color:var(--ink);
+  min-width:280px; max-width:300px; padding:8px 12px 10px; border-radius:14px; color:var(--ink);
   background:var(--panel); border:1px solid rgba(255,255,255,.14); box-shadow:var(--shadow);
   display:none; user-select:none;
 }
 .panel.show{display:block}
-.panel .handle{display:flex; align-items:center; gap:8px; margin:-6px -6px 8px; padding:6px;
+.panel .handle{display:flex; align-items:center; gap:8px; margin:-4px -4px 6px; padding:6px;
   border-radius:10px; cursor:grab; touch-action:none}
-.panel .row{display:flex; align-items:center; gap:10px; margin:8px 0}
-.panel .row label{width:96px;font-size:12px;color:var(--ink-dim)}
+.panel .row{display:flex; align-items:center; gap:10px; margin:6px 0}
+.panel .row label{width:88px;font-size:12px;color:var(--ink-dim)}
 .panel .close{margin-left:auto;height:26px;padding:0 10px;border-radius:8px;
   border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:var(--ink);font-size:14px;line-height:1}
+
+/* 入力の幅感（ラベル分を引いて自然に詰める） */
+.panel .row input[type="range"]{flex:1; min-width:120px}
+.panel .row select{max-width:84px}
+.panel .row button{height:26px;padding:0 8px;border-radius:8px;border:1px solid rgba(255,255,255,.18);
+  background:rgba(255,255,255,.08);color:#fff;font-size:12px;white-space:nowrap}
 
 /* キャンバス */
 #grid,#guide,#paint{position:absolute;left:var(--toolbar-w);top:0;right:0;bottom:0}
@@ -145,8 +151,8 @@ header.topbar{
     <button class="close" id="panelClose" aria-label="閉じる" title="閉じる">☒</button>
   </div>
   <div class="row"><label>色</label><input type="color" id="uiColor" value="#cbe58a"></div>
-  <div class="row" id="rowSize"><label>太さ</label><input type="range" min="1" max="60" value="4" id="uiSize"><span id="uiSizeVal">4px (1.06 mm)</span></div>
-  <div class="row" id="rowAlpha"><label>不透明度</label><input type="range" min="10" max="100" value="100" id="uiAlpha"><span id="uiAlphaVal">100%</span></div>
+  <div class="row" id="rowSize"><label>太さ</label><input class="grow" type="range" min="1" max="60" value="4" id="uiSize"><span id="uiSizeVal">4px (1.06 mm)</span></div>
+  <div class="row" id="rowAlpha"><label>不透明度</label><input class="grow" type="range" min="10" max="100" value="100" id="uiAlpha"><span id="uiAlphaVal">100%</span></div>
   <div class="row" id="rowLineCap"><label>端の形</label>
     <select id="uiCap"><option value="butt">□ 角</option><option value="round">● 丸</option></select>
   </div>
@@ -159,13 +165,13 @@ header.topbar{
     <select id="uiGridStep"><option value="5">5mm</option><option value="10" selected>10mm</option></select>
     <input type="color" id="uiGridColor" value="#3a4f7a"/>
   </div>
-  <div class="row" id="rowTextOps" style="display:none">
+  <div class="row" id="rowTextOps" style="display:none; gap:6px">
     <label>テキスト</label>
-    <button id="btnTextAdd">テキストを追加</button>
-    <button id="btnTextBold">太字</button>
-    <button id="btnTextIt">斜体</button>
-    <button id="btnTextDel">選択削除</button>
-    <button id="btnTextBoxDel">枠ごと削除</button>
+    <button id="btnTextAdd"  title="テキストを追加">追加</button>
+    <button id="btnTextBold" title="太字">太字</button>
+    <button id="btnTextIt"   title="斜体">斜体</button>
+    <button id="btnTextDel"  title="選択した文字を削除">選択削</button>
+    <button id="btnTextBoxDel" title="テキスト枠ごと削除">枠削</button>
   </div>
 </div>
 
@@ -241,7 +247,6 @@ document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) setTime
 /* ===== toolbar ===== */
 function saveToolState(k){
   const p=perTool[k]||(perTool[k]={});
-  // 必要なキーだけ保存
   if(typeof color!=='undefined') p.color=color;
   if(typeof size!=='undefined')  p.size=size;
   if(typeof alpha!=='undefined') p.alpha=alpha;
@@ -256,14 +261,12 @@ function loadToolState(k){
   if('cap' in p)     cap=p.cap;
   if('straight' in p)straightToggle=p.straight; else straightToggle=false;
 }
-
 function setActiveTool(t){
   const prev=tool; saveToolState(prev);
   tool=t; loadToolState(t);
   $$('.tool').forEach(b=>b.classList.toggle('active', b.dataset.tool===t));
   $('#panelTool').textContent=t;
 
-  // 行の出し分け
   $('#rowAlpha').style.display   = (t==='marker') ? '' : 'none';
   $('#rowLineCap').style.display = (t==='marker'||t==='pen') ? '' : 'none';
   $('#rowStraight').style.display= (t==='pen'||t==='marker') ? '' : 'none';
@@ -274,9 +277,7 @@ function setActiveTool(t){
 }
 
 /* △▽ 開閉（単一結線） */
-function toggleSidebar(){
-  sidebar.classList.toggle('collapsed');
-}
+function toggleSidebar(){ sidebar.classList.toggle('collapsed'); }
 $('#btnSidebarToggle').addEventListener('click', (e)=>{ e.stopPropagation(); toggleSidebar(); });
 
 /* ほかのツール */
@@ -323,7 +324,7 @@ const ui={ color:$('#uiColor'), size:$('#uiSize'), alpha:$('#uiAlpha'),
 function pxToMm(px){ return px*25.4/96; }
 function syncUI(){
   if(ui.color) ui.color.value=color||'#cbe58a';
-  if(ui.size){ ui.size.value=Number(size||4); ui.sizeVal.textContent=`${Number(size||4)}px (${pxToMm(Number(size||4)).toFixed(2)} mm)`; }
+  if(ui.size){ const v=Number(size||4); ui.size.value=v; ui.sizeVal.textContent=`${v}px (${pxToMm(v).toFixed(2)} mm)`; }
   if(ui.alpha){ ui.alpha.value=Math.round((alpha||1)*100); ui.alphaVal.textContent=Math.round((alpha||1)*100)+'%'; }
   if(ui.cap) ui.cap.value=cap||'butt';
   if(ui.straight) ui.straight.checked=!!straightToggle;
@@ -433,7 +434,6 @@ cv.addEventListener('pointermove', e=>{
   if(tool==='hand' && panning){
     const prev = getComputedStyle(viewport).translate.split(' ');
     const vx = parseFloat(prev[0])||0, vy = parseFloat(prev[1])||0;
-    // translate は累積でOK
     viewport.style.translate = `${vx + (e.movementX)}px ${vy + (e.movementY)}px`;
     return;
   }
@@ -519,8 +519,7 @@ function init(){
   $('#btnZoomReset').textContent='100%';
   setTimeout(resize,0);
   setActiveTool('pen');
-  // 起動時はパネルを閉じる
-  panel.classList.remove('show');
+  panel.classList.remove('show'); // 起動時は閉
   $$('.tool[data-tool="settings"]').forEach(b=>b.classList.remove('active'));
 }
 init();
