@@ -417,6 +417,297 @@
   init();
 })();
 </script>
+  <script defer>
+/* Note Link v0.7.2-compat2 (No.11)
+   目的: UIは変えずに「ボタンが無反応／描画不可」を復旧
+   仕組み: ツールバー内のボタンを自動検出→イベント付与、描画・ズーム・直線プレビュー・保存復元を丸ごと実装
+*/
+(() => {
+  if (window.__NL_COMPAT2__) return; window.__NL_COMPAT2__ = true;
+
+  const cssDPI = 96;
+  const $  = (s, r=document) => r.querySelector(s);
+  const $$ = (s, r=document) => Array.from(r.querySelectorAll(s));
+
+  /* ---- 1) DOM 取得（UIに依存しない検出） ---- */
+  // ワークスペース（なければ <main>→body の順で採用）
+  const workspace = $('#workspace') || $('main') || document.body;
+
+  // ビューポート（なければ workspace 自体を使う）
+  const viewport = $('#viewport') || workspace;
+
+  // ツールバー（role="toolbar" 優先。なければ header 直下の横並び）
+  const toolbar = document.querySelector('[role="toolbar"]') || $('header') || document;
+
+  // ツールバー内の“押せるもの”
+  const toolbarBtns = $$('button, [role="button"]', toolbar);
+
+  // 100% と表示されるボタン（ズーム表示）
+  const zoomDisplayBtn = toolbarBtns.find(b => /\d+%$/.test((b.textContent||'').trim())) || null;
+
+  // キーボード/設定パネル（あれば使う。無ければ無視）
+  const kbdPanel = $('#kbdPanel'); const settingsPanel = $('#settingsPanel');
+  const kbdBtn = toolbarBtns.find(b => (b.getAttribute('aria-controls')||'') === 'kbdPanel') || null;
+  const settingsBtn = toolbarBtns.find(b => (b.getAttribute('aria-controls')||'') === 'settingsPanel') || null;
+
+  // タイトル付きで拾う（最優先）
+  const byTitle = t => toolbarBtns.find(b => (b.getAttribute('title')||'').includes(t));
+  let penBtn    = byTitle('ペン');
+  let markerBtn = byTitle('マーカー') || byTitle('まーかー');
+  let lineBtn   = byTitle('直線');
+  let eraserBtn = byTitle('消しゴム') || byTitle('消す');
+  let handBtn   = byTitle('ハンドル') || byTitle('手');
+  let gridBtn   = byTitle('グリッド');
+
+  // タイトルが付いていない場合のフォールバック（ボタン順で推測）
+  if (!penBtn || !markerBtn || !lineBtn || !eraserBtn || !handBtn || !gridBtn) {
+    // 先頭から8個くらいのアイコンを対象に推測（v0.7相当の並び想定）
+    const icons = toolbarBtns.slice(0, 10);
+    penBtn    = penBtn    || icons[0];
+    markerBtn = markerBtn || icons[1];
+    lineBtn   = lineBtn   || icons[2];
+    eraserBtn = eraserBtn || icons[3];
+    gridBtn   = gridBtn   || icons[4];
+    handBtn   = handBtn   || icons[5];
+  }
+
+  // キャンバス（既存がなければ用意）
+  let baseCanvas = viewport.querySelector('canvas');
+  if (!baseCanvas) {
+    baseCanvas = document.createElement('canvas');
+    baseCanvas.style.position = 'absolute';
+    baseCanvas.style.left = baseCanvas.style.top = '0';
+    viewport.appendChild(baseCanvas);
+  }
+  const ctx = baseCanvas.getContext('2d');
+
+  // プレビュー用オーバーレイ（直線の“ラバーバンド”）
+  let overlay = $('#overlay') || $('#nlOverlay');
+  if (!overlay) {
+    overlay = document.createElement('canvas');
+    overlay.id = 'nlOverlay';
+    overlay.style.position = 'absolute';
+    overlay.style.left = overlay.style.top = '0';
+    overlay.style.pointerEvents = 'none';
+    viewport.appendChild(overlay);
+  }
+  const octx = overlay.getContext('2d');
+
+  /* ---- 2) アプリ状態 ---- */
+  const app = {
+    tool: 'pen',        // 'pen'|'marker'|'line'|'eraser'|'hand'
+    grid: false,
+    scale: 1, minScale: .25, maxScale: 4, step: .1,
+    panX: 0, panY: 0,
+    penSizePx: 2,
+    fontPt: 14,
+    strokes: [],
+    drawing: false,
+    currentStroke: null,
+    lineStart: null,
+    handStart: null,
+    pinch: null
+  };
+
+  /* ---- 3) 描画ユーティリティ ---- */
+  const fitCanvas = () => {
+    const r = workspace.getBoundingClientRect();
+    const d = Math.max(1, window.devicePixelRatio || 1);
+    [baseCanvas, overlay].forEach(cv => {
+      const need = cv.width !== Math.floor(r.width*d) || cv.height !== Math.floor(r.height*d);
+      if (need) {
+        cv.width  = Math.floor(r.width * d);
+        cv.height = Math.floor(r.height * d);
+        cv.style.width  = r.width  + 'px';
+        cv.style.height = r.height + 'px';
+      }
+    });
+    redraw(); clearOverlay();
+  };
+
+  const applyView = () => {
+    viewport.style.transformOrigin = '0 0';
+    viewport.style.transform = `translate(${app.panX}px,${app.panY}px) scale(${app.scale})`;
+    if (zoomDisplayBtn) zoomDisplayBtn.textContent = Math.round(app.scale*100) + '%';
+  };
+
+  const clear = c => c.clearRect(0,0,c.canvas.width,c.canvas.height);
+  const clearOverlay = () => clear(octx);
+  const worldToScreen = p => ({x:p.x*app.scale+app.panX, y:p.y*app.scale+app.panY});
+  const screenToWorld = p => ({x:(p.x-app.panX)/app.scale, y:(p.y-app.panY)/app.scale});
+
+  const drawStroke = st => {
+    ctx.save();
+    const d = Math.max(1, window.devicePixelRatio || 1);
+    ctx.scale(d,d);
+    ctx.lineCap='round'; ctx.lineJoin='round';
+    ctx.globalAlpha = st.alpha ?? 1;
+    ctx.globalCompositeOperation = st.comp || 'source-over';
+    ctx.strokeStyle = st.color || '#fff';
+    ctx.lineWidth   = st.w || 2;
+    if (st.type==='free' || st.type==='marker' || st.type==='eraser') {
+      ctx.beginPath();
+      st.pts.forEach((pt,i)=>{ const s=worldToScreen(pt); if(i===0) ctx.moveTo(s.x,s.y); else ctx.lineTo(s.x,s.y); });
+      ctx.stroke();
+    } else if (st.type==='line') {
+      const a=worldToScreen(st.a), b=worldToScreen(st.b);
+      ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+    }
+    ctx.restore();
+  };
+
+  const redraw = () => { clear(ctx); app.strokes.forEach(drawStroke); };
+
+  const drawOverlay = pre => {
+    clearOverlay(); if (!pre) return;
+    const d = Math.max(1, window.devicePixelRatio || 1);
+    octx.save(); octx.scale(d,d);
+    octx.lineCap='round'; octx.lineJoin='round';
+    octx.setLineDash([6,6]); octx.globalAlpha=.9;
+    octx.strokeStyle='#7ec8ff'; octx.lineWidth=app.penSizePx;
+    if (pre.type==='line') {
+      const a=worldToScreen(pre.a), b=worldToScreen(pre.b);
+      octx.beginPath(); octx.moveTo(a.x,a.y); octx.lineTo(b.x,b.y); octx.stroke();
+      // 角度（x正=0°, CCW=＋ / CW=－）
+      const ang = Math.atan2(pre.b.y-pre.a.y, pre.b.x-pre.a.x)*180/Math.PI;
+      const m = {x:(a.x+b.x)/2, y:(a.y+b.y)/2};
+      octx.setLineDash([]); octx.font='12px system-ui,sans-serif';
+      octx.strokeStyle='rgba(0,0,0,.6)'; octx.lineWidth=3; octx.strokeText(ang.toFixed(1)+'°', m.x+8, m.y-8);
+      octx.fillStyle='#fff'; octx.fillText(ang.toFixed(1)+'°', m.x+8, m.y-8);
+    }
+    octx.restore();
+  };
+
+  /* ---- 4) 入力（描画・直線プレビュー・パン） ---- */
+  const setTool = t => {
+    app.tool = t;
+    // aria-pressed 反映（存在すれば）
+    [[penBtn,'pen'],[markerBtn,'marker'],[lineBtn,'line'],[eraserBtn,'eraser'],[handBtn,'hand']]
+      .forEach(([b,name]) => b && b.setAttribute('aria-pressed', name===t ? 'true' : 'false'));
+  };
+
+  const getPt = e => {
+    if (e.touches && e.touches[0]) return {x:e.touches[0].clientX, y:e.touches[0].clientY};
+    if (e.changedTouches && e.changedTouches[0]) return {x:e.changedTouches[0].clientX, y:e.changedTouches[0].clientY};
+    return {x:e.clientX, y:e.clientY};
+  };
+
+  const begin = w => {
+    app.drawing = true;
+    if (app.tool==='pen' || app.tool==='marker' || app.tool==='eraser') {
+      app.currentStroke = {
+        type: app.tool==='eraser'?'eraser': (app.tool==='marker'?'marker':'free'),
+        pts:[w], w:app.penSizePx, color:'#fff',
+        alpha: app.tool==='marker'?0.6:1,
+        comp:  app.tool==='eraser'?'destination-out':'source-over'
+      };
+    } else if (app.tool==='line') {
+      app.lineStart = w;
+    } else if (app.tool==='hand') {
+      app.handStart = { x:w.x, y:w.y, panX:app.panX, panY:app.panY };
+    }
+  };
+
+  const move = w => {
+    if (!app.drawing) return;
+    if (app.tool==='pen' || app.tool==='marker' || app.tool==='eraser') {
+      app.currentStroke.pts.push(w);
+      const pts = app.currentStroke.pts;
+      if (pts.length>=3) { const n=pts.length, p0=pts[n-3], p1=pts[n-2], p2=pts[n-1]; p1.x=(p0.x+p1.x+p2.x)/3; p1.y=(p0.y+p1.y+p2.y)/3; }
+      redraw(); clearOverlay();
+    } else if (app.tool==='line') {
+      redraw(); drawOverlay({type:'line', a:app.lineStart, b:w});
+    } else if (app.tool==='hand') {
+      const dx=(w.x-app.handStart.x)*app.scale, dy=(w.y-app.handStart.y)*app.scale;
+      app.panX = app.handStart.panX + dx; app.panY = app.handStart.panY + dy; applyView();
+    }
+  };
+
+  const end = w => {
+    if (!app.drawing) return;
+    if (app.tool==='pen' || app.tool==='marker' || app.tool==='eraser') {
+      app.strokes.push(app.currentStroke); app.currentStroke=null; save();
+    } else if (app.tool==='line') {
+      app.strokes.push({type:'line', a:app.lineStart, b:w, w:app.penSizePx, color:'#fff', alpha:1});
+      app.lineStart=null; clearOverlay(); save();
+    }
+    app.drawing = false;
+  };
+
+  // ポインタ配線（既存があっても併存OK）
+  workspace.addEventListener('mousedown', e => begin(screenToWorld(getPt(e))));
+  window.addEventListener('mousemove', e => { if (app.drawing) move(screenToWorld(getPt(e))); });
+  window.addEventListener('mouseup',   e => { if (app.drawing) end(screenToWorld(getPt(e))); });
+
+  workspace.addEventListener('touchstart', e => {
+    if (e.touches.length===2) {
+      const [a,b]=e.touches, dx=b.clientX-a.clientX, dy=b.clientY-a.clientY;
+      app.pinch={d:Math.hypot(dx,dy), cx:(a.clientX+b.clientX)/2, cy:(a.clientY+b.clientY)/2, start:app.scale};
+    } else if (e.touches.length===1) begin(screenToWorld(getPt(e)));
+  }, {passive:true});
+
+  workspace.addEventListener('touchmove', e => {
+    if (app.pinch && e.touches.length===2) {
+      const [a,b]=e.touches, dx=b.clientX-a.clientX, dy=b.clientY-a.clientY;
+      const d=Math.hypot(dx,dy); setScale(app.pinch.start*(d/app.pinch.d), {x:(a.clientX+b.clientX)/2, y:(a.clientY+b.clientY)/2});
+    } else if (e.touches.length===1 && app.drawing) move(screenToWorld(getPt(e)));
+  }, {passive:true});
+
+  workspace.addEventListener('touchend', e => { if (app.pinch && e.touches.length<2) app.pinch=null; if (app.drawing) end(screenToWorld(getPt(e))); }, {passive:true});
+
+  // ズーム（Ctrl+ホイール）
+  function setScale(next, center) {
+    app.scale = Math.max(app.minScale, Math.min(app.maxScale, next));
+    if (center) {
+      const before = screenToWorld(center); applyView(); const after = screenToWorld(center);
+      app.panX += (after.x-before.x)*app.scale; app.panY += (after.y-before.y)*app.scale;
+    }
+    applyView();
+  }
+  workspace.addEventListener('wheel', e => { if (!e.ctrlKey) return; e.preventDefault(); const d=-Math.sign(e.deltaY)*app.step; setScale(app.scale+d, {x:e.clientX,y:e.clientY}); }, {passive:false});
+
+  /* ---- 5) ボタン動作（UIはそのまま） ---- */
+  penBtn    && penBtn.addEventListener('click', () => setTool('pen'));
+  markerBtn && markerBtn.addEventListener('click', () => setTool('marker'));
+  lineBtn   && lineBtn.addEventListener('click', () => setTool('line'));
+  eraserBtn && eraserBtn.addEventListener('click', () => setTool('eraser'));
+  handBtn   && handBtn.addEventListener('click', () => setTool('hand'));
+  gridBtn   && gridBtn.addEventListener('click', () => {
+    app.grid = !app.grid;
+    gridBtn.setAttribute('aria-pressed', app.grid?'true':'false');
+    // 背景グリッドは見た目だけ。スナップは無効（段々線防止）
+  });
+
+  // パネル（外側タップでは閉じない）
+  function bindPanelToggle(btn, panel){
+    if (!btn || !panel) return;
+    btn.addEventListener('click', () => {
+      const open = btn.getAttribute('aria-pressed')==='true';
+      btn.setAttribute('aria-pressed', open?'false':'true');
+      panel.hidden = open ? true : false;
+    });
+    ['click','mousedown','touchstart'].forEach(t => panel.addEventListener(t, e => e.stopPropagation(), {passive:true}));
+  }
+  bindPanelToggle(kbdBtn, kbdPanel);
+  bindPanelToggle(settingsBtn, settingsPanel);
+
+  /* ---- 6) 保存/復元（IndexedDB） ---- */
+  const DB='notelink-db', STORE='doc', KEY='latest';
+  function idbOpen(){return new Promise((ok,ng)=>{const r=indexedDB.open(DB,1); r.onupgradeneeded=e=>{const db=e.target.result; if(!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE);}; r.onsuccess=()=>ok(r.result); r.onerror=()=>ng(r.error);});}
+  async function idbSet(v){try{const db=await idbOpen(); const tx=db.transaction(STORE,'readwrite'); tx.objectStore(STORE).put(v,KEY); await new Promise((ok,ng)=>{tx.oncomplete=ok; tx.onerror=()=>ng(tx.error)}); db.close();}catch{}}
+  async function idbGet(){try{const db=await idbOpen(); const tx=db.transaction(STORE,'readonly'); const req=tx.objectStore(STORE).get(KEY); const v=await new Promise((ok,ng)=>{req.onsuccess=()=>ok(req.result); req.onerror=()=>ng(req.error)}); db.close(); return v;}catch{return null}}
+  function save(){ idbSet(JSON.stringify({strokes:app.strokes, scale:app.scale, panX:app.panX, panY:app.panY, penSizePx:app.penSizePx, fontPt:app.fontPt})); }
+  async function restore(){ const raw=await idbGet(); if(!raw) return; try{const s=JSON.parse(raw); app.strokes=s.strokes||[]; app.scale=s.scale??1; app.panX=s.panX??0; app.panY=s.panY??0; app.penSizePx=s.penSizePx??2; app.fontPt=s.fontPt??14; applyView(); redraw();}catch{} }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState==='hidden') save(); });
+  window.addEventListener('pagehide', save); window.addEventListener('pageshow', restore);
+
+  /* ---- 7) 初期化 ---- */
+  window.addEventListener('resize', fitCanvas);
+  function init(){ fitCanvas(); applyView(); setTool('pen'); restore(); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+})();
+</script>
+
 </head>
 <body>
 <div class="app">
