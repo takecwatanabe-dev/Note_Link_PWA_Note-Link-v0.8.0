@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
-<title>NOTE LINK — V0.8.0-COMPAT-02C-SINGLEFILE-FIX3</title>
+<title>NOTE LINK — V0.8.0-COMPAT-02C-SINGLEFILE-FIX3-EXPORT1</title>
 <style>
 :root{--bg:#0f1115;--panel:#181b22;--line:#2a2f3a;--text:#e6e9ef;--accent:#50c878;--danger:#e45858;}
 *{box-sizing:border-box}
@@ -35,7 +35,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font:14px/
 <body>
 <header class="topbar">
   <div class="app-title">NOTE LINK</div><div class="spacer"></div>
-  <div class="version">V0.8.0-COMPAT-02C-SINGLEFILE-FIX3</div>
+  <div class="version">V0.8.0-COMPAT-02C-SINGLEFILE-FIX3-EXPORT1</div>
 </header>
 
 <div class="layout">
@@ -44,6 +44,8 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font:14px/
     <button class="tb-btn" data-tool="eraser" title="消しゴム (E)">🩹</button>
     <button class="tb-btn" data-tool="hand"   title="ハンド/移動 (H)">✋</button>
     <button class="tb-btn" data-tool="keyboard" title="キーボード (K)">⌨</button>
+    <button class="tb-btn" data-tool="gear"   title="設定">⚙</button>
+    <!-- ★ 追加：PNGエクスポート -->
     <button class="tb-btn" data-action="export" title="PNGエクスポート">⭳</button>
     <button class="tb-btn danger" data-action="clearAll" title="全消去">🗑</button>
   </aside>
@@ -95,10 +97,8 @@ const store={strokes:[],scale:1,offsetX:0,offsetY:0};
 function addStroke(s){store.strokes.push(s);}
 function clearAll(){store.strokes.length=0;}
 function redraw(ctx){
-  // まず完全クリア（デバイスpx基準）
   ctx.setTransform(1,0,0,1,0,0);
   ctx.clearRect(0,0,ctx.canvas.width,ctx.canvas.height);
-  // DPRとスケール・オフセットを合成（CSS pxに対して正確に一致）
   ctx.setTransform(DPR*store.scale,0,0,DPR*store.scale,DPR*store.offsetX,DPR*store.offsetY);
   for(const s of store.strokes){ if(s.tool==='eraser') continue; drawStroke(ctx,s); }
 }
@@ -110,8 +110,7 @@ function drawStroke(ctx,s){
     const a=s.points[i-1], b=s.points[i];
     ctx.lineWidth = s.sizePx * (1 + (b.p ?? 1) * 0.6);
     ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y);
-  }
-  ctx.stroke();
+  } ctx.stroke();
 }
 function mmToPx(mm){return mm*(96/25.4);} function pxToPt(px){return px*72/96;}
 function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
@@ -119,93 +118,48 @@ function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
 /* === 2) 幾何ユーティリティ（直線スナップ） === */
 function segDist2(x1,y1,x2,y2,px,py){const vx=x2-x1,vy=y2-y1,wx=px-x1,wy=py-y1;const c1=vx*wx+vy*wy;if(c1<=0)return(px-x1)**2+(py-y1)**2;const c2=vx*vx+vy*vy;if(c2<=c1)return(px-x2)**2+(py-y2)**2;const t=c1/c2,sx=x1+t*vx,sy=y1+t*vy;return(px-sx)**2+(py-sy)**2;}
 function hitStroke(stk,x,y,r){ if(stk.tool!=='pen')return false;const r2=r*r;for(let i=1;i<stk.points.length;i++){const a=stk.points[i-1],b=stk.points[i];if(segDist2(a.x,a.y,b.x,b.y,x,y)<=r2)return true;}return false;}
-function snapTo45(x0,y0,x1,y1){
-  const dx=x1-x0, dy=y1-y0, len=Math.hypot(dx,dy)||1;
-  let ang=Math.atan2(dy,dx);
-  const step=Math.PI/4; ang = Math.round(ang/step)*step; // 45°刻み
-  return { x: x0 + Math.cos(ang)*len, y: y0 + Math.sin(ang)*len };
-}
+function snapTo45(x0,y0,x1,y1){const dx=x1-x0,dy=y1-y0,len=Math.hypot(dx,dy)||1;let ang=Math.atan2(dy,dx);const step=Math.PI/4;ang=Math.round(ang/step)*step;return{x:x0+Math.cos(ang)*len,y:y0+Math.sin(ang)*len};}
 
-/* === 3) Ink：canvasに直結、DPRと座標を一致 === */
+/* === 3) Ink：canvasに直結、DPRと座標一致＆Shift直線 === */
 function createInk(ctx, target){
   let drawing=false, current=null, activeId=null, start={x:0,y:0};
   const state={tool:'pen',color:'#e6e9ef',sizeMm:2.0,sizePx:mmToPx(2.0),showLive:true,onLive:(_)=>{}};
-
-  function setTool(t){state.tool=t;}
-  function setSizeMm(mm){state.sizeMm=mm;state.sizePx=mmToPx(mm);}
-  function setShowLive(v){state.showLive=v;}
-  function onLive(fn){state.onLive=fn;}
-
-  function toLocal(e){ // CSS px → 論理座標（DPR不要：transform側で吸収）
-    const r=target.getBoundingClientRect();
-    const x=(e.clientX - r.left - store.offsetX)/store.scale;
-    const y=(e.clientY - r.top  - store.offsetY)/store.scale;
-    return {x,y};
-  }
+  function setTool(t){state.tool=t;} function setSizeMm(mm){state.sizeMm=mm;state.sizePx=mmToPx(mm);}
+  function setShowLive(v){state.showLive=v;} function onLive(fn){state.onLive=fn;}
+  function toLocal(e){const r=target.getBoundingClientRect();return{x:(e.clientX-r.left-store.offsetX)/store.scale,y:(e.clientY-r.top-store.offsetY)/store.scale};}
 
   target.addEventListener('pointerdown',(e)=>{
-    target.setPointerCapture(e.pointerId);
-    activeId=e.pointerId;
+    target.setPointerCapture(e.pointerId); activeId=e.pointerId;
     if(state.tool==='hand'){ drawing=true; target.dataset.panX0=e.clientX; target.dataset.panY0=e.clientY; target.dataset.offX0=store.offsetX; target.dataset.offY0=store.offsetY; return; }
     if(state.tool==='eraser'){ drawing=true; const p=toLocal(e); store.strokes=store.strokes.filter(stk=>!hitStroke(stk,p.x,p.y,10/store.scale)); redraw(ctx); return; }
-
-    drawing=true;
-    const p=toLocal(e); start=p;
-    current={tool:'pen',color:state.color,sizePx:state.sizePx,points:[p]};
-    addStroke(current);
+    drawing=true; const p=toLocal(e); start=p; current={tool:'pen',color:state.color,sizePx:state.sizePx,points:[p]}; addStroke(current);
   });
-
   target.addEventListener('pointermove',(e)=>{
     if(state.showLive) state.onLive({p:e.pressure||0,tx:e.tiltX||0,ty:e.tiltY||0});
-    if(!drawing || e.pointerId!==activeId) return;
-
-    if(state.tool==='hand'){
-      const dx=e.clientX-Number(target.dataset.panX0), dy=e.clientY-Number(target.dataset.panY0);
-      store.offsetX=Number(target.dataset.offX0)+dx; store.offsetY=Number(target.dataset.offY0)+dy; redraw(ctx); return;
-    }
+    if(!drawing||e.pointerId!==activeId) return;
+    if(state.tool==='hand'){ const dx=e.clientX-Number(target.dataset.panX0),dy=e.clientY-Number(target.dataset.panY0); store.offsetX=Number(target.dataset.offX0)+dx; store.offsetY=Number(target.dataset.offY0)+dy; redraw(ctx); return; }
     if(state.tool==='eraser'){ const p=toLocal(e); store.strokes=store.strokes.filter(stk=>!hitStroke(stk,p.x,p.y,10/store.scale)); redraw(ctx); return; }
-
     const p=toLocal(e);
-    if(e.shiftKey){ // 直線モード（Shift押下）
-      const s=snapTo45(start.x,start.y,p.x,p.y);
-      current.points = [start, s];
-    }else{
-      current.points.push({x:p.x,y:p.y,p:e.pressure||0,tx:e.tiltX||0,ty:e.tiltY||0});
-    }
+    if(e.shiftKey){ const s=snapTo45(start.x,start.y,p.x,p.y); current.points=[start,s]; }
+    else{ current.points.push({x:p.x,y:p.y,p:e.pressure||0,tx:e.tiltX||0,ty:e.tiltY||0}); }
     redraw(ctx);
   });
-
   target.addEventListener('pointerup',(e)=>{ if(e.pointerId!==activeId) return; drawing=false; activeId=null; });
   target.addEventListener('pointercancel',()=>{ drawing=false; activeId=null; });
-
-  target.addEventListener('wheel',(e)=>{
-    e.preventDefault();
-    const s0=store.scale, delta=Math.sign(e.deltaY)*-0.07, s1=clamp(store.scale*(1+delta),0.25,4);
-    const r=target.getBoundingClientRect();
-    const cx=e.clientX - r.left - store.offsetX, cy=e.clientY - r.top - store.offsetY;
-    store.offsetX -= cx*(s1/s0 - 1); store.offsetY -= cy*(s1/s0 - 1);
-    store.scale=s1; redraw(ctx);
-  },{passive:false});
-
+  target.addEventListener('wheel',(e)=>{ e.preventDefault(); const s0=store.scale,delta=Math.sign(e.deltaY)*-0.07,s1=clamp(store.scale*(1+delta),0.25,4);
+    const r=target.getBoundingClientRect();const cx=e.clientX-r.left-store.offsetX,cy=e.clientY-r.top-store.offsetY;
+    store.offsetX-=cx*(s1/s0-1); store.offsetY-=cy*(s1/s0-1); store.scale=s1; redraw(ctx);},{passive:false});
   return { setTool, setSizeMm, setShowLive, onLive };
 }
 
 /* === 4) UI結線 === */
 const $=s=>document.querySelector(s), $$=s=>Array.from(document.querySelectorAll(s));
 const canvas=$('#stage'), host=$('#canvasHost'), ctx=canvas.getContext('2d');
-
-function resizeCanvas(){
-  DPR = Math.max(1, Math.min(3, window.devicePixelRatio||1));
-  const rect=host.getBoundingClientRect();
-  canvas.width = Math.floor(rect.width * DPR);
-  canvas.height= Math.floor(rect.height* DPR);
-  redraw(ctx);
-}
+function resizeCanvas(){DPR=Math.max(1,Math.min(3,window.devicePixelRatio||1));const rect=host.getBoundingClientRect();canvas.width=Math.floor(rect.width*DPR);canvas.height=Math.floor(rect.height*DPR);redraw(ctx);}
 addEventListener('resize',resizeCanvas); resizeCanvas();
+const ink=createInk(ctx, canvas);
 
-const ink=createInk(ctx, canvas); // ★ canvas直結
-
-// 右クリックで一時ハンド
+// 右クリック一時ハンド
 let rightDown=false, prevTool='pen';
 canvas.addEventListener('pointerdown',e=>{ if(e.button===2){ rightDown=true; prevTool=currentTool(); ink.setTool('hand'); }});
 addEventListener('pointerup',e=>{ if(rightDown&&e.button===2){ rightDown=false; ink.setTool(prevTool); selectTool(prevTool);} });
@@ -213,32 +167,34 @@ addEventListener('contextmenu',e=>{ if(e.target===host||e.target===canvas) e.pre
 
 const hudTool=$('#hudTool'),hudSize=$('#hudSize'),hudPressure=$('#hudPressure'),hudTilt=$('#hudTilt'),hudScale=$('#hudScale');
 const penSize=$('#penSize'),unitMM=$('#unitMM'),unitPX=$('#unitPX'),unitPT=$('#unitPT'),showLive=$('#showLive');
-
-function updateUnits(){ const mm=Number(penSize.value),px=mmToPx(mm),pt=pxToPt(px);
-  unitMM.textContent=`${mm.toFixed(1)} mm`; unitPX.textContent=`${px.toFixed(1)} px`; unitPT.textContent=`${pt.toFixed(1)} pt`;
-  hudSize.textContent=`Size: ${mm.toFixed(1)} mm (${px.toFixed(1)} px / ${pt.toFixed(1)} pt)`; ink.setSizeMm(mm); }
+function updateUnits(){ const mm=Number(penSize.value),px=mmToPx(mm),pt=pxToPt(px); unitMM.textContent=`${mm.toFixed(1)} mm`; unitPX.textContent=`${px.toFixed(1)} px`; unitPT.textContent=`${pt.toFixed(1)} pt`; hudSize.textContent=`Size: ${mm.toFixed(1)} mm (${px.toFixed(1)} px / ${pt.toFixed(1)} pt)`; ink.setSizeMm(mm); }
 penSize.addEventListener('input',updateUnits,{passive:true}); updateUnits();
 showLive.addEventListener('change',()=>ink.setShowLive(showLive.checked),{passive:true});
 ink.onLive(({p,tx,ty})=>{ hudPressure.textContent=`Pressure: ${p.toFixed(2)}`; hudTilt.textContent=`Tilt: ${tx|0}/${ty|0}`; hudScale.textContent=`Scale: ${(store.scale*100)|0}%`; });
-
 function currentTool(){ const a=$('#toolbar .tb-btn.active'); return a?.dataset.tool||'pen'; }
-function selectTool(tool){
-  $$('#toolbar .tb-btn').forEach(b=>b.classList.remove('active'));
-  const t=document.querySelector(`#toolbar .tb-btn[data-tool="${tool}"]`); if(t) t.classList.add('active');
-  hudTool.textContent=`Tool: ${tool[0].toUpperCase()+tool.slice(1)}`; ink.setTool(tool);
-  if(tool==='keyboard') openDialog('#dlgKeyboard'); if(tool==='gear') openDialog('#dlgGear');
-}
+function selectTool(tool){ $$('#toolbar .tb-btn').forEach(b=>b.classList.remove('active')); const t=document.querySelector(`#toolbar .tb-btn[data-tool="${tool}"]`); if(t) t.classList.add('active'); hudTool.textContent=`Tool: ${tool[0].toUpperCase()+tool.slice(1)}`; ink.setTool(tool); if(tool==='keyboard') openDialog('#dlgKeyboard'); if(tool==='gear') openDialog('#dlgGear'); }
+
+/* ★ クリック処理（エクスポート対応） */
 $$('#toolbar .tb-btn').forEach(btn=>{
   btn.addEventListener('click',()=>{
     if(btn.dataset.action==='clearAll'){ if(confirm('全ての描画を消去します。よろしいですか？')){ clearAll(); redraw(ctx);} return; }
+    if(btn.dataset.action==='export'){ exportPNG(); return; }   // ← 追加
     selectTool(btn.dataset.tool);
   },{passive:true});
 });
 selectTool('pen');
 
-function bindDialog(dlg){ dlg.querySelectorAll('[data-close]').forEach(x=>x.addEventListener('click',()=>dlg.close()));
-  dlg.addEventListener('cancel',e=>{e.preventDefault();dlg.close();}); dlg.addEventListener('click',e=>{if(e.target===dlg) dlg.close();}); }
+function bindDialog(dlg){ dlg.querySelectorAll('[data-close]').forEach(x=>x.addEventListener('click',()=>dlg.close())); dlg.addEventListener('cancel',e=>{e.preventDefault();dlg.close();}); dlg.addEventListener('click',e=>{if(e.target===dlg) dlg.close();}); }
 function openDialog(sel){ const dlg=$(sel); if(dlg&&typeof dlg.showModal==='function'){ dlg.showModal(); bindDialog(dlg);} }
+
+/* ★ PNGエクスポート本体 */
+function exportPNG(){
+  const oc=document.createElement('canvas'); oc.width=canvas.width; oc.height=canvas.height;
+  const octx=oc.getContext('2d'); octx.fillStyle='#0b0e14'; octx.fillRect(0,0,oc.width,oc.height);
+  octx.drawImage(canvas,0,0);
+  const url=oc.toDataURL('image/png'); const a=document.createElement('a');
+  a.href=url; a.download=`note-link-${new Date().toISOString().replace(/[:.]/g,'-')}.png`; a.click();
+}
 </script>
 </body>
 </html>
