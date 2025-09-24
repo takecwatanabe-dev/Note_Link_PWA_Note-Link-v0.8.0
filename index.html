@@ -1,39 +1,36 @@
 <!doctype html><html lang="ja"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Note Link — v0.8.0-compat-02b-fix4</title>
+<title>Note Link — v0.8.0-compat-02b-fix5</title>
 <style>
 :root{
   --ink:#e6f1ff; --ink-dim:#9bd6e9; --bg:#0b1020;
   --panel:#101827; --accent:#3f78ff; --ok:#20e3c2; --muted:#2a3550;
   --shadow:0 10px 24px rgba(0,0,0,.45);
-  --topbar-h:44px; --toolbar-w:56px; --zoom:1;
+  --topbar-h:44px; --toolbar-w:56px;
 }
-*{box-sizing:border-box}
-html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);
+*{box-sizing:border-box} html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);
   font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Hiragino Kaku Gothic ProN",Meiryo,sans-serif}
 
 /* 固定ヘッダ */
 header.topbar{
   position:fixed; top:0; left:0; right:0; z-index:2000;
-  height:var(--topbar-h);
-  display:flex; align-items:center; gap:8px; padding:0 10px; font-size:12px; color:#fff;
+  height:var(--topbar-h); display:flex; align-items:center; gap:8px; padding:0 10px; font-size:12px; color:#fff;
   background:linear-gradient(0deg,rgba(42,84,255,.16),rgba(42,84,255,.16)),var(--accent);
-  border-bottom:1px solid rgba(255,255,255,.15);
+  border-bottom:1px solid rgba(255,255,255,.15)
 }
 .topbar .sp{flex:1}
 .topbar .btn{height:28px;padding:0 10px;border-radius:10px;background:rgba(255,255,255,.2);
-  border:1px solid rgba(255,255,255,.22);color:#fff;display:inline-flex;align-items:center;gap:6px}
+  border:1px solid rgba(255,255,255,.22);color:#fff;display:inline-flex;align-items:center}
 .topbar .btn:active{transform:translateY(1px)} .build{opacity:.8}
 
 /* レイアウト */
-#wrap{position:relative;height:100%; padding-top:var(--topbar-h)}
-#stage{position:absolute; inset:var(--topbar-h) 0 0 0; padding-left:var(--toolbar-w)}
-#viewport{position:absolute; inset:0; transform-origin:0 0; transform:scale(var(--zoom));}
+#wrap{position:relative;height:100%;padding-top:var(--topbar-h)}
+#stage{position:absolute; inset:0; padding-left:var(--toolbar-w)}
+#viewport{position:absolute; inset:0; transform-origin:0 0}
 
-/* サイドバー（幅固定） */
+/* サイドバー */
 .sidebar{
-  position:fixed; z-index:2500; left:0;
-  top:var(--topbar-h); bottom:0; width:var(--toolbar-w);
+  position:fixed; z-index:1500; left:0; top:var(--topbar-h); bottom:0; width:var(--toolbar-w);
   display:flex; flex-direction:column; align-items:center;
   background:rgba(0,0,0,.86); box-shadow:0 0 0 1px var(--muted) inset;
 }
@@ -43,44 +40,33 @@ header.topbar{
   background:rgba(22,26,38,.75); border:1px solid rgba(50,60,100,.6);
   outline:1px solid rgba(79,124,255,.35); box-shadow:0 0 0 2px rgba(0,0,0,.12)
 }
-.tool svg{width:18px;height:18px;stroke:var(--ink);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .tool:hover{outline:1px solid rgba(79,124,255,.5)}
 .tool.active{outline:1px solid var(--ok)}
-.tool[data-tool="toggle"] svg{transition:transform .2s ease}
-.sidebar.collapsed .tool[data-tool="toggle"] svg{transform:rotate(180deg)}
+.tool svg{width:18px;height:18px;stroke:var(--ink);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .sidebar.collapsed .rail > .tool:not([data-tool="toggle"]){display:none}
+.tool[data-tool="toggle"] svg{transition:transform .2s}
+.sidebar.collapsed .tool[data-tool="toggle"] svg{transform:rotate(180deg)}
 
-/* パネル：可変高さ＋上限で内部スクロール、タイトル左寄せ&sticky */
+/* パネル（安全設計） */
 .panel{
-  position:absolute; z-index:2400; left:70px; top:calc(var(--topbar-h) + 10px);
+  position:absolute; z-index:1400; left:70px; top:calc(var(--topbar-h) + 10px);
   min-width:280px; max-width:300px; padding:8px 12px 10px; border-radius:14px; color:var(--ink);
   background:var(--panel); border:1px solid rgba(255,255,255,.14); box-shadow:var(--shadow);
-  display:none; user-select:none;
-  max-height:calc(100vh - var(--topbar-h) - 24px);
-  overflow:auto; overscroll-behavior:contain; scrollbar-gutter:stable;
+  display:none; user-select:none; max-height:calc(100vh - var(--topbar-h) - 24px); overflow:auto
 }
 .panel.show{display:block}
-.panel .handle{
-  position:sticky; top:0; z-index:1;
-  display:flex; align-items:center; gap:8px;
-  margin:-8px -12px 8px; padding:8px 12px;
-  background:var(--panel); border-bottom:1px solid rgba(255,255,255,.08);
-  border-top-left-radius:14px; border-top-right-radius:14px;
-  cursor:grab; touch-action:none;
-}
-#panelTool{flex:1; font-weight:600; font-size:14px; text-align:left}
+.panel .handle{position:sticky; top:0; display:flex; align-items:center; gap:8px; padding:8px 12px; margin:-8px -12px 8px;
+  background:var(--panel); border-bottom:1px solid #ffffff14; border-radius:14px 14px 0 0; cursor:grab}
+#panelTool{flex:1;font-weight:600;font-size:14px;text-align:left}
+.panel .close{margin-left:auto;height:26px;padding:0 10px;border-radius:8px;border:1px solid #ffffff2e;background:#ffffff14;color:var(--ink);font-size:14px}
 .panel .row{display:flex; align-items:center; gap:10px; margin:6px 0}
 .panel .row label{width:88px;font-size:12px;color:var(--ink-dim)}
-.panel .close{margin-left:auto;height:26px;padding:0 10px;border-radius:8px;
-  border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:var(--ink);font-size:14px;line-height:1}
 .panel .row input[type="range"]{flex:1; min-width:120px}
-.panel .row select{max-width:84px}
-.panel .row button{height:26px;padding:0 8px;border-radius:8px;border:1px solid rgba(255,255,255,.18);
-  background:rgba(255,255,255,.08);color:#fff;font-size:12px;white-space:nowrap}
+.panel .row button{height:26px;padding:0 8px;border-radius:8px;border:1px solid #ffffff2e;background:#ffffff14;color:#fff;font-size:12px}
 
 /* キャンバス */
-#grid,#guide,#paint{position:absolute;left:var(--toolbar-w);top:0;right:0;bottom:0}
-#grid,#guide{z-index:100;pointer-events:none} #paint{z-index:80}
+#grid,#guide,#paint{position:absolute; left:var(--toolbar-w); top:0; right:0; bottom:0}
+#grid,#guide{z-index:100; pointer-events:none} #paint{z-index:80}
 
 /* テキスト */
 .text-layer{position:absolute;left:var(--toolbar-w);top:0;right:0;bottom:0;z-index:120;pointer-events:none}
@@ -90,27 +76,22 @@ header.topbar{
 .note-text .del{position:absolute;right:-8px;top:-10px;font-size:11px;color:#fff;background:#0008;border:1px solid #fff3;border-radius:8px;padding:2px 6px;display:none}
 .note-text:focus-within .del{display:block}
 
-/* 設定ツールのツールチップはダイアログ外（上） */
+/* ツールチップ：設定は必ず外側（上） */
 [data-tip]{position:relative}
-[data-tip]::after{
-  content:attr(data-tip);position:absolute;left:48px;top:50%;transform:translateY(-50%);
-  background:#222a;color:#fff;font-size:12px;padding:4px 8px;border-radius:8px;white-space:nowrap;pointer-events:none;
-  opacity:0;translate:0 -4px;transition:.15s
-}
-[data-tip]:hover::after{opacity:1;translate:0 0}
-.sidebar .tool[data-tool="settings"][data-tip]::after{
-  left:8px; top:auto; bottom:calc(100% + 8px); transform:none; translate:0 0; z-index:2600;
-}
+[data-tip]::after{content:attr(data-tip);position:absolute;left:48px;top:50%;transform:translateY(-50%);
+  background:#222a;color:#fff;font-size:12px;padding:4px 8px;border-radius:8px;white-space:nowrap;pointer-events:none;opacity:0;transition:.15s}
+[data-tip]:hover::after{opacity:1}
+.sidebar .tool[data-tool="settings"][data-tip]::after{left:8px;top:auto;bottom:calc(100% + 8px);transform:none;z-index:1800}
 
 @media print{
-  header.topbar,.sidebar,.panel,.build,[data-tip]::after{display:none!important}
+  header.topbar,.sidebar,.panel,[data-tip]::after{display:none!important}
   #stage{padding-left:0!important} body,html,#wrap{height:auto}
 }
 </style>
 </head>
 <body>
 <header class="topbar" id="topbar">
-  <strong>Note Link v0.8.0 / No.13</strong>
+  <strong id="verText">Note Link v0.8.0 / No.13</strong>
   <span class="sp"></span>
   <button class="btn" id="btnZoomOut">−</button>
   <button class="btn" id="btnZoomReset">100%</button>
@@ -120,7 +101,7 @@ header.topbar{
   <button class="btn" id="btnPrint">印刷</button>
   <button class="btn" id="btnPng">PNG</button>
   <button class="btn" id="btnShare">共有</button>
-  <span class="build">build: compat-02b-fix4</span>
+  <span class="build" id="buildText">build: compat-02b-fix5</span>
 </header>
 
 <aside class="sidebar" id="sidebar">
@@ -151,14 +132,13 @@ header.topbar{
 
 <!-- 設定パネル -->
 <div class="panel" id="panel">
-  <div class="handle" id="panelHandle" data-tip="ドラッグで移動">
-    <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+  <div class="handle" id="panelHandle">
     <div id="panelTool">-</div>
-    <button class="close" id="panelClose" aria-label="閉じる" title="閉じる">☒</button>
+    <button class="close" id="panelClose" title="閉じる">☒</button>
   </div>
   <div class="row"><label>色</label><input type="color" id="uiColor" value="#cbe58a"></div>
-  <div class="row" id="rowSize"><label>太さ</label><input class="grow" type="range" min="1" max="60" value="4" id="uiSize"><span id="uiSizeVal">4px (1.06 mm)</span></div>
-  <div class="row" id="rowAlpha"><label>不透明度</label><input class="grow" type="range" min="10" max="100" value="100" id="uiAlpha"><span id="uiAlphaVal">100%</span></div>
+  <div class="row" id="rowSize"><label>太さ</label><input type="range" min="1" max="60" value="4" id="uiSize"><span id="uiSizeVal">4px (1.06 mm)</span></div>
+  <div class="row" id="rowAlpha"><label>不透明度</label><input type="range" min="10" max="100" value="100" id="uiAlpha"><span id="uiAlphaVal">100%</span></div>
   <div class="row" id="rowLineCap"><label>端の形</label>
     <select id="uiCap"><option value="butt">□ 角</option><option value="round">● 丸</option></select>
   </div>
@@ -191,70 +171,66 @@ header.topbar{
 </div></div>
 
 <script>
-/* ===== helpers / DOM refs ===== */
-const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
-const DPR=Math.max(1,devicePixelRatio||1);
+/* ====== 安全な初期化 ====== */
+const $=s=>document.querySelector(s), $$=s=>Array.from(document.querySelectorAll(s));
+const DPR=Math.max(1, self.devicePixelRatio||1);
+
 const topbar=$('#topbar'), sidebar=$('#sidebar'), panel=$('#panel');
 const cvGrid=$('#grid'), ctxGrid=cvGrid.getContext('2d');
 const cvGuide=$('#guide'), ctxGuide=cvGuide.getContext('2d');
 const cv=$('#paint'), ctx=cv.getContext('2d',{alpha:true});
-const textLayer=$('#textLayer'), viewport=$('#viewport');
+const viewport=$('#viewport'), textLayer=$('#textLayer');
 
-/* ===== version（DOM取得後に反映） ===== */
-const APP_VERSION="v0.8.0", BUILD_ID="compat-02b-fix4";
-const strongEl=topbar.querySelector('strong'); if(strongEl) strongEl.textContent=`Note Link ${APP_VERSION} / No.13`;
-const buildEl=document.querySelector('.build'); if(buildEl) buildEl.textContent=`build: ${BUILD_ID}`;
+const APP_VERSION='v0.8.0', BUILD_ID='compat-02b-fix5';
 document.title=`Note Link — ${APP_VERSION}-${BUILD_ID}`;
+$('#verText').textContent=`Note Link ${APP_VERSION} / No.13`;
+$('#buildText').textContent=`build: ${BUILD_ID}`;
 
-/* ===== state ===== */
-let W=0,H=0, zoom=1, tool='pen';
+/* ====== レイアウト ====== */
+function applyBars(){
+  const h = Math.round(topbar.getBoundingClientRect().height) || 44;
+  document.documentElement.style.setProperty('--topbar-h', h+'px');
+}
+let W=0,H=0, zoom=1;
+let panX=0, panY=0;
+function updateViewportTransform(){
+  viewport.style.transform=`translate(${panX}px,${panY}px) scale(${zoom})`;
+}
+function resize(){
+  applyBars();
+  const r = viewport.getBoundingClientRect();
+  W = Math.max(1, Math.round(r.width/zoom));
+  H = Math.max(1, Math.round(r.height/zoom));
+  for(const c of [cvGrid,cvGuide,cv]){
+    c.width = Math.round(W*DPR); c.height = Math.round(H*DPR);
+    c.style.width = (W*zoom)+'px'; c.style.height=(H*zoom)+'px';
+  }
+  drawGrid();
+}
+addEventListener('resize', resize);
+addEventListener('orientationchange', ()=>setTimeout(resize,50));
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) setTimeout(resize,50); });
+
+/* ====== 状態 ====== */
+let tool='pen';
 const perTool={
   pen:{color:'#cbe58a',size:4,alpha:1,cap:'butt',straight:false},
   marker:{color:'#cbe58a',size:16,alpha:.4,cap:'butt',straight:false},
   eraser:{size:24}, hand:{}, keyboard:{}
 };
 let color=perTool.pen.color, size=perTool.pen.size, alpha=1, cap='butt';
-let straightToggle=false, straightKey=false, gridOn=false, gridStepMM=10, gridColor='#3a4f7a', gridFirst=false;
+let straightToggle=false, straightKey=false;
+let gridOn=false, gridStepMM=10, gridColor='#3a4f7a', gridFirst=false;
 
-/* ===== layout ===== */
-function applyBars(){
-  const h=Math.round(topbar.getBoundingClientRect().height)||44;
-  document.documentElement.style.setProperty('--topbar-h', h+'px');
-}
-let resizeLock=false;
-function resize(){
-  if(resizeLock) return; resizeLock=true;
-  const prevW=cv.width, prevH=cv.height;
-  const prevURL=(prevW&&prevH)?cv.toDataURL('image/png'):null;
-
-  applyBars();
-  const r=viewport.getBoundingClientRect();
-  W=Math.round(r.width/zoom); H=Math.round(r.height/zoom);
-  [cvGrid,cvGuide,cv].forEach(c=>{
-    c.width=Math.round(W*DPR); c.height=Math.round(H*DPR);
-    c.style.width=(W*zoom)+'px'; c.style.height=(H*zoom)+'px';
-  });
-  drawGrid();
-
-  if(prevURL){
-    const img=new Image(); img.onload=()=>{ ctx.drawImage(img,0,0,prevW,prevH,0,0,cv.width,cv.height); resizeLock=false; }; img.src=prevURL;
-  }else resizeLock=false;
-}
-addEventListener('resize', resize);
-addEventListener('orientationchange', ()=>setTimeout(resize,50));
-document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) setTimeout(resize,50); });
-
-/* ===== toolbar ===== */
-function saveToolState(k){ const p=perTool[k]||(perTool[k]={});
-  if(color!=null) p.color=color; if(size!=null) p.size=size; if(alpha!=null) p.alpha=alpha; if(cap!=null) p.cap=cap; p.straight=!!straightToggle; }
-function loadToolState(k){ const p=perTool[k]||{};
-  if('color' in p) color=p.color; if('size' in p) size=p.size; if('alpha' in p) alpha=p.alpha; if('cap' in p) cap=p.cap; straightToggle=!!p.straight; }
+/* ====== ツール切替 ====== */
+function saveToolState(k){const p=perTool[k]||(perTool[k]={}); p.color=color; p.size=size; p.alpha=alpha; p.cap=cap; p.straight=!!straightToggle;}
+function loadToolState(k){const p=perTool[k]||{}; color=p.color??color; size=p.size??size; alpha=p.alpha??alpha; cap=p.cap??cap; straightToggle=!!p.straight;}
 function setActiveTool(t){
-  const prev=tool; saveToolState(prev);
-  tool=t; loadToolState(t);
+  saveToolState(tool); tool=t; loadToolState(t);
   $$('.tool').forEach(b=>b.classList.toggle('active', b.dataset.tool===t));
   $('#panelTool').textContent=t;
 
+  // 表示切替
   $('#rowAlpha').style.display   = (t==='marker') ? '' : 'none';
   $('#rowLineCap').style.display = (t==='marker'||t==='pen') ? '' : 'none';
   $('#rowStraight').style.display= (t==='pen'||t==='marker') ? '' : 'none';
@@ -263,194 +239,152 @@ function setActiveTool(t){
 
   syncUI();
 }
-function toggleSidebar(){ sidebar.classList.toggle('collapsed'); }
-$('#btnSidebarToggle').addEventListener('click', (e)=>{ e.stopPropagation(); toggleSidebar(); });
+$('#btnSidebarToggle').addEventListener('click', e=>{ e.stopPropagation(); sidebar.classList.toggle('collapsed'); });
 $$('.tool').forEach(btn=>{
   if(btn.id==='btnSidebarToggle') return;
-  btn.addEventListener('click', (e)=>{
+  btn.addEventListener('click', e=>{
     e.stopPropagation();
     const t=btn.dataset.tool;
     if(t==='settings'){
-      panel.classList.toggle('show');
-      $$('.tool[data-tool="settings"]').forEach(b=>b.classList.toggle('active', panel.classList.contains('show')));
+      const show=!panel.classList.contains('show');
+      panel.classList.toggle('show', show);
+      btn.classList.toggle('active', show);
       return;
     }
     setActiveTool(t);
   });
 });
 
-/* ==== panel drag & close ==== */
+/* ====== パネル ドラッグ/クローズ ====== */
 (()=>{
-  let id=null, sx=0,sy=0,ox=0,oy=0,drag=false;
-  const handle=$('#panelHandle');
-  function down(e){ drag=true; id=e.pointerId; panel.setPointerCapture(id);
+  const handle=$('#panelHandle'); let dragging=false, sx=0, sy=0, ox=0, oy=0, id=0;
+  function down(e){ dragging=true; id=e.pointerId; panel.setPointerCapture(id);
     sx=e.clientX; sy=e.clientY; const r=panel.getBoundingClientRect(); ox=r.left; oy=r.top; e.preventDefault(); }
-  function move(e){ if(!drag||e.pointerId!==id) return; const nx=ox+(e.clientX-sx), ny=oy+(e.clientY-sy);
+  function move(e){ if(!dragging||e.pointerId!==id) return;
+    const nx=ox+(e.clientX-sx), ny=oy+(e.clientY-sy);
     panel.style.left=Math.max(56,nx)+'px';
     const top=parseInt(getComputedStyle(document.documentElement).getPropertyValue('--topbar-h'))+6;
-    panel.style.top=Math.max(top,ny)+'px'; }
-  function up(e){ if(e.pointerId!==id) return; drag=false; try{ panel.releasePointerCapture(id);}catch{} id=null; }
+    panel.style.top=Math.max(top,ny)+'px';
+  }
+  function up(e){ if(e.pointerId!==id) return; dragging=false; try{panel.releasePointerCapture(id)}catch{} }
   handle.addEventListener('pointerdown',down,{passive:false});
   panel.addEventListener('pointermove',move,{passive:false});
   panel.addEventListener('pointerup',up,{passive:false});
   panel.addEventListener('pointercancel',up,{passive:false});
-  $('#panelClose')?.addEventListener('click', ()=>{
+  $('#panelClose').addEventListener('click',()=>{
     panel.classList.remove('show');
     $$('.tool[data-tool="settings"]').forEach(b=>b.classList.remove('active'));
   });
 })();
 
-/* ==== panel inputs ==== */
+/* ====== パネル inputs ====== */
 const ui={ color:$('#uiColor'), size:$('#uiSize'), alpha:$('#uiAlpha'),
   sizeVal:$('#uiSizeVal'), alphaVal:$('#uiAlphaVal'), cap:$('#uiCap'),
   straight:$('#uiStraight'), gridFirst:$('#uiGridFirst'),
   gOn:$('#uiGrid'), gStep:$('#uiGridStep'), gColor:$('#uiGridColor') };
-function pxToMm(px){ return px*25.4/96; }
+function pxToMm(px){ return px*25.4/96 }
 function syncUI(){
-  if(ui.color) ui.color.value=color||'#cbe58a';
-  if(ui.size){ const v=Number(size||4); ui.size.value=v; ui.sizeVal.textContent=`${v}px (${pxToMm(v).toFixed(2)} mm)`; }
-  if(ui.alpha){ ui.alpha.value=Math.round((alpha||1)*100); ui.alphaVal.textContent=Math.round((alpha||1)*100)+'%'; }
-  if(ui.cap) ui.cap.value=cap||'butt';
-  if(ui.straight) ui.straight.checked=!!straightToggle;
-  if(ui.gridFirst) ui.gridFirst.checked=!!gridFirst;
-  if(ui.gOn) ui.gOn.checked=!!gridOn;
-  if(ui.gStep) ui.gStep.value=String(gridStepMM);
-  if(ui.gColor) ui.gColor.value=gridColor;
+  ui.color.value=color; ui.size.value=size; ui.sizeVal.textContent=`${size}px (${pxToMm(size).toFixed(2)} mm)`;
+  ui.alpha.value=Math.round(alpha*100); ui.alphaVal.textContent=Math.round(alpha*100)+'%';
+  ui.cap.value=cap; ui.straight.checked=straightToggle; ui.gridFirst.checked=gridFirst;
+  ui.gOn.checked=gridOn; ui.gStep.value=String(gridStepMM); ui.gColor.value=gridColor;
 }
 function onPanelChange(){
-  if(ui.color) color=ui.color.value;
-  if(ui.size){ size=+ui.size.value; ui.sizeVal.textContent=`${size}px (${pxToMm(size).toFixed(2)} mm)`; }
-  if(ui.alpha){ alpha=+ui.alpha.value/100; ui.alphaVal.textContent=Math.round(alpha*100)+'%'; }
-  if(ui.cap) cap=ui.cap.value;
-  if(ui.straight) straightToggle=ui.straight.checked;
-  if(ui.gridFirst) gridFirst=ui.gridFirst.checked;
-  if(ui.gOn) gridOn=ui.gOn.checked;
-  if(ui.gStep) gridStepMM=+ui.gStep.value;
-  if(ui.gColor) gridColor=ui.gColor.value;
-  drawGrid();
+  color=ui.color.value; size=+ui.size.value; ui.sizeVal.textContent=`${size}px (${pxToMm(size).toFixed(2)} mm)`;
+  alpha=+ui.alpha.value/100; ui.alphaVal.textContent=Math.round(alpha*100)+'%';
+  cap=ui.cap.value; straightToggle=ui.straight.checked; gridFirst=ui.gridFirst.checked;
+  gridOn=ui.gOn.checked; gridStepMM=+ui.gStep.value; gridColor=ui.gColor.value; drawGrid();
 }
-Object.values(ui).forEach(el=>el?.addEventListener?.('input',onPanelChange));
+Object.values(ui).forEach(el=>el.addEventListener('input',onPanelChange));
 
-/* ==== zoom ==== */
-function setZoom(z){
-  zoom=Math.min(3,Math.max(0.5, z));
-  document.documentElement.style.setProperty('--zoom', zoom);
-  $('#btnZoomReset').textContent = Math.round(zoom*100) + '%';
-  resize();
-}
+/* ====== ズーム ====== */
+function setZoom(z){ zoom=Math.max(0.5,Math.min(3,z)); $('#btnZoomReset').textContent=Math.round(zoom*100)+'%'; updateViewportTransform(); resize(); }
 $('#btnZoomIn').addEventListener('click',()=>setZoom(zoom+0.1));
 $('#btnZoomOut').addEventListener('click',()=>setZoom(zoom-0.1));
 $('#btnZoomReset').addEventListener('click',()=>setZoom(1));
 
-/* ==== grid/canvas ==== */
+/* ====== グリッド ====== */
 function clear(c){ c.getContext('2d').clearRect(0,0,c.width,c.height) }
 function mmToPx(mm){ return mm*96/25.4*DPR }
 function drawGrid(){
   clear(cvGrid); if(!gridOn) return;
   const step=mmToPx(gridStepMM), s=ctxGrid, ox=0.5*DPR, oy=0.5*DPR;
-  s.save(); s.lineWidth=1; s.strokeStyle=gridColor+'CC';
-  s.beginPath();
+  s.save(); s.lineWidth=1; s.strokeStyle=gridColor+'CC'; s.beginPath();
   for(let x=ox;x<=cvGrid.width;x+=step){ s.moveTo(x,0); s.lineTo(x,cvGrid.height); }
   for(let y=oy;y<=cvGrid.height;y+=step){ s.moveTo(0,y); s.lineTo(cvGrid.width,y); }
   s.stroke(); s.restore();
 }
 
-/* ==== drawing ==== */
+/* ====== 描画 ====== */
 function setCtx(){
   ctx.lineCap=(tool==='marker'||tool==='pen')?cap:'round';
   if(tool==='marker'){ ctx.globalCompositeOperation='source-over'; ctx.strokeStyle=hexA(color,alpha) }
   else if(tool==='pen'){ ctx.globalCompositeOperation='source-over'; ctx.strokeStyle=color }
-  else if(tool==='eraser'){ ctx.globalCompositeOperation='destination-out'; ctx.strokeStyle='rgba(0,0,0,1)' }
+  else if(tool==='eraser'){ ctx.globalCompositeOperation='destination-out'; ctx.strokeStyle='#000' }
   ctx.lineWidth=(size||4)*DPR;
 }
-function hexA(hex,a){const m=/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)||['','cc','e5','8a'];
-  const r=parseInt(m[1],16),g=parseInt(m[2],16),b=parseInt(m[3],16); return `rgba(${r},${g},${b},${a??1})`;}
+function hexA(hex,a){const m=/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)||['','cc','e5','8a']; const r=parseInt(m[1],16),g=parseInt(m[2],16),b=parseInt(m[3],16); return `rgba(${r},${g},${b},${a??1})`;}
 function pt(e){ const r=cv.getBoundingClientRect(); return {x:(e.clientX-r.left)/zoom*DPR, y:(e.clientY-r.top)/zoom*DPR} }
-
-let drawing=false, startPt=null, panning=false;
 function snapToGrid(p){ if(!gridOn) return p; const g=mmToPx(gridStepMM); return { x:Math.round(p.x/g)*g, y:Math.round(p.y/g)*g }; }
 function snapLine(p0,p1){
   if(gridFirst){ const a0=snapToGrid(p0), a1=snapToGrid(p1); return {x:a1.x,y:a1.y,ang:Math.atan2(a1.y-a0.y,a1.x-a0.x)}; }
-  const dx=p1.x-p0.x, dy=p1.y-p0.y, step=Math.PI/12;
-  let ang=Math.round(Math.atan2(dy,dx)/step)*step;
-  let len=Math.hypot(dx,dy), x=p0.x+Math.cos(ang)*len, y=p0.y+Math.sin(ang)*len;
-  if(gridOn){ ({x,y}=snapToGrid({x,y})); }
-  return {x,y,ang};
+  const dx=p1.x-p0.x, dy=p1.y-p0.y, step=Math.PI/12; let ang=Math.round(Math.atan2(dy,dx)/step)*step;
+  let len=Math.hypot(dx,dy), x=p0.x+Math.cos(ang)*len, y=p0.y+Math.sin(ang)*len; if(gridOn){ ({x,y}=snapToGrid({x,y})); } return {x,y,ang};
 }
-function drawAngleHUD(p,ang){
-  clear(cvGuide);
-  const s=ctxGuide, d=DPR; s.save(); s.translate(p.x,p.y);
-  s.fillStyle='#000a'; s.strokeStyle='#ddd'; s.lineWidth=1.5*d;
-  s.beginPath(); s.roundRect(-28*d,-16*d,56*d,22*d,6*d); s.fill(); s.stroke();
+function drawHUD(p,ang){
+  clear(cvGuide); const s=ctxGuide, d=DPR; s.save(); s.translate(p.x,p.y);
+  s.fillStyle='rgba(0,0,0,.65)'; s.strokeStyle='#ddd'; s.lineWidth=1.2*d;
+  // 角丸を使わず4角形
+  s.beginPath(); s.rect(-28*d,-16*d,56*d,22*d); s.fill(); s.stroke();
   s.fillStyle='#fff'; s.font=(12*d)+'px system-ui'; s.textAlign='center'; s.textBaseline='middle';
   const deg=(ang*180/Math.PI); s.fillText((deg>=0?'+':'')+Math.round(deg)+'°',0,-5*d); s.restore();
 }
 
-/* ==== history ==== */
+/* 履歴（最小） */
 const hist=[], redoStack=[];
 function snapshot(){ return { url: cv.toDataURL(), texts: textLayer.innerHTML }; }
 function pushHistory(){ hist.push(snapshot()); if(hist.length>10) hist.shift(); redoStack.length=0; }
-async function restore(snap){
-  clear(cv); textLayer.innerHTML=snap?.texts||'';
-  if(!snap?.url) return;
+async function restore(snap){ clear(cv); textLayer.innerHTML=snap?.texts||''; if(!snap?.url) return;
   await new Promise(res=>{ const img=new Image(); img.onload=()=>{ ctx.drawImage(img,0,0); res(); }; img.src=snap.url; });
 }
 async function undo(){ if(!hist.length) return; const cur=snapshot(); const prev=hist.pop(); redoStack.push(cur); await restore(prev); }
 async function redo(){ const next=redoStack.pop(); if(!next) return; hist.push(snapshot()); await restore(next); }
+$('#btnUndo').addEventListener('click',()=>undo()); $('#btnRedo').addEventListener('click',()=>redo());
 
-/* ==== pointer ==== */
-let straightKey=false;
+/* ポインタ */
+let drawing=false, startPt=null, panning=false;
 cv.addEventListener('pointerdown', e=>{
-  if(tool==='hand'){
-    // CSS translate をそのまま増減
-    return panning=true;
-  }
+  if(tool==='hand'){ panning=true; cv.setPointerCapture(e.pointerId); return; }
   e.preventDefault(); cv.setPointerCapture(e.pointerId);
   setCtx(); let p=pt(e); const straight=(straightKey || $('#uiStraight').checked);
-  startPt=(gridFirst && straight)?snapToGrid(p):p;
-  drawing=true; if(!straight){ ctx.beginPath(); ctx.moveTo(startPt.x,startPt.y); }
+  startPt=(gridFirst && straight)?snapToGrid(p):p; drawing=true; if(!straight){ ctx.beginPath(); ctx.moveTo(startPt.x,startPt.y); }
   pushHistory();
 },{passive:false});
 cv.addEventListener('pointermove', e=>{
-  if(tool==='hand' && panning){
-    const prev=getComputedStyle(viewport).translate.split(' ');
-    const vx=(parseFloat(prev[0])||0)+e.movementX, vy=(parseFloat(prev[1])||0)+e.movementY;
-    viewport.style.translate=`${vx}px ${vy}px`;
-    return;
-  }
+  if(tool==='hand' && panning){ panX += e.movementX; panY += e.movementY; updateViewportTransform(); return; }
   if(!drawing) return;
-  let p=pt(e);
-  const straight=(straightKey || $('#uiStraight').checked);
+  let p=pt(e); const straight=(straightKey || $('#uiStraight').checked);
   if(!straight){ ctx.lineTo(p.x,p.y); ctx.stroke(); return; }
   const sp=snapLine(startPt,p);
-  clear(cvGuide);
-  const g=ctxGuide; g.save(); g.lineCap=ctx.lineCap; g.lineWidth=(size||4)*DPR; g.strokeStyle='#7ec8ff';
+  clear(cvGuide); const g=ctxGuide; g.save(); g.lineCap=ctx.lineCap; g.lineWidth=(size||4)*DPR; g.strokeStyle='#7ec8ff';
   g.setLineDash([6*DPR,6*DPR]); g.beginPath(); g.moveTo(startPt.x,startPt.y); g.lineTo(sp.x,sp.y); g.stroke(); g.restore();
-  drawAngleHUD(sp,sp.ang);
+  drawHUD(sp,sp.ang);
 },{passive:false});
 cv.addEventListener('pointerup', e=>{
   if(tool==='hand' && panning){ panning=false; return; }
   if(!drawing){ clear(cvGuide); return; }
   const straight=(straightKey || $('#uiStraight').checked);
-  if(straight){
-    let p=pt(e); const sp=snapLine(startPt,p); setCtx();
-    ctx.beginPath(); ctx.moveTo(startPt.x,startPt.y); ctx.lineTo(sp.x,sp.y); ctx.stroke();
-  }
+  if(straight){ let p=pt(e); const sp=snapLine(startPt,p); setCtx(); ctx.beginPath(); ctx.moveTo(startPt.x,startPt.y); ctx.lineTo(sp.x,sp.y); ctx.stroke(); }
   drawing=false; startPt=null; clear(cvGuide);
 },{passive:false});
-
-/* ==== keyboard ==== */
 addEventListener('keydown',e=>{ if(e.key==='Shift') straightKey=true; });
 addEventListener('keyup',e=>{ if(e.key==='Shift') straightKey=false; });
 
-/* ==== text ==== */
+/* テキスト */
 function addText(){
   const el=document.createElement('div'); el.className='note-text'; el.contentEditable='true';
-  el.setAttribute('tabindex','0'); el.setAttribute('inputmode','text');
-  el.style.left=(90+Math.random()*40)+'px'; el.style.top=(70+Math.random()*40)+'px';
-  el.textContent='テキスト';
-  const del=document.createElement('button'); del.className='del'; del.textContent='削除';
-  del.addEventListener('click',()=>el.remove()); el.appendChild(del);
+  el.style.left=(90+Math.random()*40)+'px'; el.style.top=(70+Math.random()*40)+'px'; el.textContent='テキスト';
+  const del=document.createElement('button'); del.className='del'; del.textContent='削除'; del.addEventListener('click',()=>el.remove()); el.appendChild(del);
   textLayer.appendChild(el); setTimeout(()=>el.focus(),0);
 }
 $('#btnTextAdd').addEventListener('click', addText);
@@ -459,19 +393,17 @@ $('#btnTextIt').addEventListener('click',()=>document.execCommand('italic',false
 $('#btnTextDel').addEventListener('click',()=>document.execCommand('delete',false,null));
 $('#btnTextBoxDel').addEventListener('click',()=>{
   const sel=window.getSelection(); if(!sel.rangeCount) return;
-  let el=sel.anchorNode; while(el && !(el instanceof HTMLElement && el.classList.contains('note-text'))) el=el.parentNode;
-  if(el) el.remove();
+  let el=sel.anchorNode; while(el && !(el instanceof HTMLElement && el.classList.contains('note-text'))) el=el.parentNode; if(el) el.remove();
 });
 
-/* ==== export/print/share ==== */
+/* 画像出力/印刷/共有 */
 function composite(){
-  const out=document.createElement('canvas'); out.width=cv.width; out.height=cv.height;
-  const o=out.getContext('2d');
-  o.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--bg').trim()||'#0b1020';
-  o.fillRect(0,0,out.width,out.height); o.drawImage(cvGrid,0,0); o.drawImage(cv,0,0);
+  const out=document.createElement('canvas'); out.width=cv.width; out.height=cv.height; const o=out.getContext('2d');
+  o.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--bg').trim()||'#0b1020'; o.fillRect(0,0,out.width,out.height);
+  o.drawImage(cvGrid,0,0); o.drawImage(cv,0,0);
   [...textLayer.querySelectorAll('.note-text')].forEach(n=>{
-    const r=n.getBoundingClientRect(), layer=textLayer.getBoundingClientRect();
-    const x=((r.left-layer.left)/zoom)*DPR, y=((r.top-layer.top)/zoom)*DPR;
+    const r=n.getBoundingClientRect(), L=textLayer.getBoundingClientRect();
+    const x=((r.left-L.left)/zoom)*DPR, y=((r.top-L.top)/zoom)*DPR;
     o.fillStyle='#eaf3ff'; o.font=(16*DPR)+'px system-ui'; o.fillText(n.textContent.trim(), x, y+16*DPR);
   });
   return out;
@@ -487,15 +419,10 @@ $('#btnShare').addEventListener('click',()=>{
   });
 });
 
-/* ==== undo/redo ==== */
-$('#btnUndo').addEventListener('click', async()=>{ await undo(); });
-$('#btnRedo').addEventListener('click', async()=>{ await redo(); });
-
-/* ==== init ==== */
+/* ====== init ====== */
 function init(){
   applyBars();
-  document.documentElement.style.setProperty('--zoom', zoom);
-  $('#btnZoomReset').textContent='100%';
+  updateViewportTransform();
   setTimeout(resize,0);
   setActiveTool('pen');
   panel.classList.remove('show'); // 起動時は閉
