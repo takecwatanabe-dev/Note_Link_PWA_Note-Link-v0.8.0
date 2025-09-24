@@ -1,6 +1,6 @@
 <!doctype html><html lang="ja"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>NOTE LINK — V0.8.0-COMPAT-02B-FIX9</title>
+<title>NOTE LINK — V0.8.0-COMPAT-02B-FIX10</title>
 <style>
 :root{
   --ink:#e6f1ff; --ink-dim:#9bd6e9; --bg:#0b1020;
@@ -28,7 +28,7 @@ header.topbar{
 #stage{position:absolute; inset:0; padding-left:var(--toolbar-w)}
 #viewport{position:absolute; inset:0; transform-origin:0 0}
 
-/* サイドバー（クリック阻害ゼロ） */
+/* サイドバー */
 .sidebar{
   position:fixed; z-index:4000; left:0; top:var(--topbar-h); bottom:0; width:var(--toolbar-w);
   display:flex; flex-direction:column; align-items:center;
@@ -66,7 +66,7 @@ header.topbar{
 .panel .row input[type="range"]{flex:1; min-width:120px}
 .panel .row button{height:26px;padding:0 8px;border-radius:8px;border:1px solid #ffffff2e;background:#ffffff14;color:#fff;font-size:12px;white-space:nowrap}
 
-/* キーボードボタン2列（可変長対策） */
+/* キーボードボタン2列 */
 #rowTextOps > .btn-grid{display:grid; grid-template-columns:repeat(2, minmax(96px, 1fr)); gap:6px; width:100%}
 
 /* キャンバス */
@@ -106,31 +106,31 @@ header.topbar{
   <button class="btn" id="btnPrint">印刷</button>
   <button class="btn" id="btnPng">PNG</button>
   <button class="btn" id="btnShare">共有</button>
-  <span class="build" id="buildText">build: compat-02b-fix9</span>
+  <span class="build" id="buildText">build: compat-02b-fix10</span>
 </header>
 
 <aside class="sidebar" id="sidebar">
-  <div class="rail" id="toolRail">
-    <button class="tool" data-tool="toggle" data-tip="ツールバーの開閉">
+  <div class="rail">
+    <button class="tool" data-tool="toggle" data-tip="ツールバーの開閉" onclick="onToggleSidebar()">
       <svg viewBox="0 0 24 24"><path d="M5 15 L12 7 L19 15 M19 15 L5 15"/></svg>
     </button>
-    <button class="tool" data-tool="pen" data-tip="ペン">
+    <button class="tool" data-tool="pen" data-tip="ペン" onclick="onToolClick('pen')">
       <svg viewBox="0 0 24 24"><path d="M3 21l4-1 12-12-3-3L4 17l-1 4zM14 6l3 3"/></svg>
     </button>
-    <button class="tool" data-tool="marker" data-tip="マーカー">
+    <button class="tool" data-tool="marker" data-tip="マーカー" onclick="onToolClick('marker')">
       <svg viewBox="0 0 24 24"><path d="M3 16l10-10 5 5-10 10-5 1 1-6zM13 6l5 5"/></svg>
     </button>
-    <button class="tool" data-tool="eraser" data-tip="消しゴム">
+    <button class="tool" data-tool="eraser" data-tip="消しゴム" onclick="onToolClick('eraser')">
       <svg viewBox="0 0 24 24"><path d="M3 15l8-8 6 6-6 6H7zM13 7l4 4"/></svg>
     </button>
-    <button class="tool" data-tool="hand" data-tip="選択/パン">
+    <button class="tool" data-tool="hand" data-tip="選択/パン" onclick="onToolClick('hand')">
       <svg viewBox="0 0 24 24"><path d="M9 11V6a2 2 0 0 1 4 0v5M13 11V5a2 2 0 1 1 4 0v8M9 11a2 2 0 0 1 4 0v8l-2 2-4-4-2-6 2-1z"/></svg>
     </button>
-    <button class="tool" data-tool="keyboard" data-tip="テキスト">
+    <button class="tool" data-tool="keyboard" data-tip="テキスト" onclick="onToolClick('keyboard')">
       <svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="10" rx="2"></rect><path d="M7 10h10M5 13h14"/></svg>
     </button>
-    <button class="tool" data-tool="settings" data-tip="ツール設定（表示/非表示）">
-      <svg viewBox="0 0 24 24"><path d="M12 7.5a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9zM4 13h2l1 2-1 2H4l-1-2 1-2zm14 0h2l1 2-1 2h-2l-1-2 1-2zM8 4h2l2 1 2-1h2l1 2-1 2h-2l-2-1-2 1H8L7 6l1-2z"/></svg>
+    <button class="tool" data-tool="settings" data-tip="ツール設定（表示/非表示）" onclick="onToggleSettings(this)">
+      <svg viewBox="0 0 24 24"><path d="M12 7.5a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9zM8 4h2l2 1 2-1h2l1 2-1 2h-2l-2-1-2 1H8L7 6l1-2z"/></svg>
     </button>
   </div>
 </aside>
@@ -193,7 +193,7 @@ const cvGuide=$('#guide'), ctxGuide=cvGuide.getContext('2d');
 const cv=$('#paint'), ctx=cv.getContext('2d',{alpha:true});
 const viewport=$('#viewport'), textLayer=$('#textLayer');
 
-const APP_VERSION='V0.8.0', BUILD_ID='compat-02b-fix9';
+const APP_VERSION='V0.8.0', BUILD_ID='compat-02b-fix10';
 document.title=`NOTE LINK — ${APP_VERSION}-${BUILD_ID}`;
 $('#verText').textContent=`NOTE LINK ${APP_VERSION} / No.13`;
 $('#buildText').textContent=`build: ${BUILD_ID}`;
@@ -231,12 +231,15 @@ let gridOn=false, gridStepMM=10, gridColor='#3a4f7a', gridFirst=false;
 let palmReject=true, pressureOn=true, tiltOn=true;
 const penRecent={active:false, ts:0};
 
-/* ===== ツール結線はイベント委譲 ===== */
 function saveToolState(k){const p=perTool[k]||(perTool[k]={}); p.color=color; p.size=size; p.alpha=alpha; p.cap=cap; p.straight=!!straightToggle;}
 function loadToolState(k){const p=perTool[k]||{}; color=p.color??color; size=p.size??size; alpha=p.alpha??alpha; cap=p.cap??cap; straightToggle=!!p.straight;}
-function setActiveTool(t){
-  saveToolState(tool); tool=t; loadToolState(t);
-  $$('.tool').forEach(b=>b.classList.toggle('active', b.dataset.tool===t));
+function refreshToolActive(){ $$('.tool').forEach(b=>b.classList.toggle('active', b.dataset.tool===tool)); }
+
+/* ===== ここが “確実に反応” する inline handlers ===== */
+function onToolClick(t){
+  saveToolState(tool);
+  tool=t; loadToolState(t);
+  refreshToolActive();
   $('#panelTool').textContent=t;
   $('#rowAlpha').style.display   = (t==='marker') ? '' : 'none';
   $('#rowLineCap').style.display = (t==='marker'||t==='pen') ? '' : 'none';
@@ -246,23 +249,16 @@ function setActiveTool(t){
   $('#rowPenExt').style.display  = (t==='pen'||t==='marker') ? '' : 'none';
   syncUI();
 }
-$('#toolRail').addEventListener('click', (e)=>{
-  const btn=e.target.closest('.tool'); if(!btn) return; e.preventDefault(); e.stopPropagation();
-  const t=btn.dataset.tool;
-  if(t==='toggle'){ sidebar.classList.toggle('collapsed'); return; }
-  if(t==='settings'){
-    const show=!panel.classList.contains('show');
-    panel.classList.toggle('show', show);
-    btn.classList.toggle('active', show);
-    return;
-  }
-  setActiveTool(t);
-});
+function onToggleSidebar(){ sidebar.classList.toggle('collapsed'); }
+function onToggleSettings(btn){
+  const show=!panel.classList.contains('show');
+  panel.classList.toggle('show', show);
+  if(btn) btn.classList.toggle('active', show);
+}
 
 /* ===== パネル Drag/Close ===== */
 (()=>{
   const handle=$('#panelHandle'); let dragging=false, sx=0, sy=0, ox=0, oy=0, id=0;
-  $('#panelClose').addEventListener('pointerdown', ev=>{ ev.stopPropagation(); }, {passive:false});
   $('#panelClose').addEventListener('click',()=>{
     panel.classList.remove('show');
     $$('.tool[data-tool="settings"]').forEach(b=>b.classList.remove('active'));
@@ -327,7 +323,7 @@ function drawGrid(){
   s.stroke(); s.restore();
 }
 
-/* ===== 描画（ペン拡張） ===== */
+/* ===== 描画（パーム/圧力/傾き対応） ===== */
 function setCtx(){
   ctx.lineCap=(tool==='marker'||tool==='pen')?cap:'round';
   if(tool==='marker'){ ctx.globalCompositeOperation='source-over'; ctx.strokeStyle=hexA(color,alpha) }
@@ -460,7 +456,7 @@ function init(){
   applyBars();
   updateViewportTransform();
   setTimeout(resize,0);
-  setActiveTool('pen');
+  onToolClick('pen');           // 起動時に選択
   panel.classList.remove('show'); // 起動時は閉
   $$('.tool[data-tool="settings"]').forEach(b=>b.classList.remove('active'));
 }
