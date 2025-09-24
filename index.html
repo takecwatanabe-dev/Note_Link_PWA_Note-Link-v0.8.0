@@ -1,16 +1,46 @@
 <!doctype html>
 <html lang="ja">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
-  <title>NOTE LINK — V0.8.0-COMPAT-02C-FIX2</title>
-  <link rel="stylesheet" href="./css/styles.css" />
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>NOTE LINK — V0.8.0-COMPAT-02C-SINGLEFILE-FIX1</title>
+
+<style>
+:root{--bg:#0f1115;--panel:#181b22;--line:#2a2f3a;--text:#e6e9ef;--accent:#50c878;--danger:#e45858;}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font:14px/1.6 system-ui,"Noto Sans JP",sans-serif}
+.topbar{display:flex;align-items:center;gap:.75rem;padding:.5rem .75rem;background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20}
+.topbar .app-title{font-weight:700;letter-spacing:.04em}
+.topbar .spacer{flex:1}
+.topbar .version{opacity:.8}
+.layout{display:grid;grid-template-columns:64px 1fr;min-height:calc(100vh - 44px)}
+.toolbar{display:flex;flex-direction:column;gap:.5rem;padding:.5rem;background:var(--panel);border-right:1px solid var(--line);z-index:30}
+.tb-btn{display:grid;place-items:center;height:48px;border:1px solid var(--line);background:#13161c;color:var(--text);border-radius:12px;font-size:20px;cursor:pointer}
+.tb-btn:hover{outline:2px solid var(--accent)}
+.tb-btn.active{background:#0b2c21}
+.tb-btn.danger{border-color:#5b2b2b}
+.stage-wrap{position:relative;overflow:hidden}
+.canvas-host{width:100%;height:calc(100vh - 44px);touch-action:none;outline:none}
+#stage{width:100%;height:100%;display:block;background:#0b0e14}
+.hud{position:absolute;left:8px;bottom:8px;display:flex;gap:.75rem;background:#0b0e14cc;padding:.4rem .6rem;border:1px solid var(--line);border-radius:10px;backdrop-filter:blur(6px)}
+.modal{border:none;border-radius:16px;background:var(--panel);color:var(--text);padding:0;max-width:min(560px, calc(100vw - 24px))}
+.modal::backdrop{background:#0006}
+.modal header{display:flex;align-items:center;gap:.5rem;padding:.6rem .8rem;border-bottom:1px solid var(--line)}
+.modal header h3{margin:0;font-size:16px}
+.modal .close{margin-left:auto;inline-size:36px;block-size:36px;border:none;border-radius:10px;background:#222;color:var(--text);font-size:18px;cursor:pointer}
+.modal section{padding:.8rem}
+.settings label{display:block;margin:.6rem 0}
+.settings .units{display:flex;gap:1rem;opacity:.9}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:.5rem}
+.kbd{height:44px;border:1px solid var(--line);border-radius:10px;background:#141820;font-size:18px}
+@media (max-width:900px){.layout{grid-template-columns:56px 1fr}}
+</style>
 </head>
 <body>
   <header class="topbar">
     <div class="app-title">NOTE LINK</div>
     <div class="spacer"></div>
-    <div class="version">V0.8.0-COMPAT-02C-FIX2</div>
+    <div class="version">V0.8.0-COMPAT-02C-SINGLEFILE-FIX1</div>
   </header>
 
   <div class="layout">
@@ -40,17 +70,13 @@
   <!-- キーボード -->
   <dialog id="dlgKeyboard" class="modal">
     <header>
-      <h3>キーボード</h3>
-      <button class="close" data-close>×</button>
+      <h3>キーボード</h3><button class="close" data-close>×</button>
     </header>
     <section>
       <div class="grid2">
-        <button class="kbd">Ａ</button>
-        <button class="kbd">あ</button>
-        <button class="kbd">１</button>
-        <button class="kbd">＋</button>
-        <button class="kbd">−</button>
-        <button class="kbd">×</button>
+        <button class="kbd">Ａ</button><button class="kbd">あ</button>
+        <button class="kbd">１</button><button class="kbd">＋</button>
+        <button class="kbd">−</button><button class="kbd">×</button>
       </div>
     </section>
   </dialog>
@@ -58,8 +84,7 @@
   <!-- 設定 -->
   <dialog id="dlgGear" class="modal">
     <header>
-      <h3>設定</h3>
-      <button class="close" data-close>×</button>
+      <h3>設定</h3><button class="close" data-close>×</button>
     </header>
     <section class="settings">
       <label>ペン太さ
@@ -70,12 +95,245 @@
         <span id="unitPX">7.6 px</span>
         <span id="unitPT">5.7 pt</span>
       </div>
-      <label><input id="showLive" type="checkbox" checked /> 圧力/傾きをHUD表示</label>
+      <label><input id="showLive" type="checkbox" checked> 圧力/傾きをHUD表示</label>
     </section>
   </dialog>
 
-  <!-- ★この2行が生命線（パスは ./css と ./js） -->
-  <link rel="stylesheet" href="./css/styles.css">
-  <script type="module" src="./js/app.js"></script>
+<script>
+/* ===== 0) 古いService Workerとキャッシュを自動解除 ===== */
+(async () => {
+  try {
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      for (const r of regs) await r.unregister();
+    }
+    if ('caches' in window) {
+      const keys = await caches.keys();
+      for (const k of keys) await caches.delete(k);
+    }
+  } catch(e) { /* 失敗しても続行 */ }
+})();
+
+/* ===== 1) 共有ストアと描画 ===== */
+const store = { strokes: [], scale: 1, offsetX: 0, offsetY: 0 };
+function addStroke(s){ store.strokes.push(s); }
+function clearAll(){ store.strokes.length = 0; }
+function redraw(ctx){
+  const w = ctx.canvas.width, h = ctx.canvas.height;
+  ctx.save();
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.clearRect(0,0,w,h);
+  ctx.setTransform(store.scale,0,0,store.scale,store.offsetX,store.offsetY);
+  for(const s of store.strokes){
+    if(s.tool === 'eraser') continue;
+    drawStroke(ctx, s);
+  }
+  ctx.restore();
+}
+function drawStroke(ctx, s){
+  if(!s.points || s.points.length < 1) return;
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.strokeStyle = s.color || '#e6e9ef';
+  ctx.beginPath();
+  for(let i=1;i<s.points.length;i++){
+    const a=s.points[i-1], b=s.points[i];
+    const w = s.sizePx * (1 + (b.p ?? 1)*0.6); // 圧力で太さ変化
+    ctx.lineWidth = w;
+    ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y);
+  }
+  ctx.stroke();
+}
+
+/* ===== 2) 入力（Ink） ===== */
+function mmToPx(mm){ return mm * (96/25.4); }
+function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+function segDist2(x1,y1,x2,y2,px,py){
+  const vx=x2-x1, vy=y2-y1, wx=px-x1, wy=py-y1;
+  const c1=vx*wx+vy*wy; if(c1<=0) return (px-x1)**2+(py-y1)**2;
+  const c2=vx*vx+vy*vy; if(c2<=c1) return (px-x2)**2+(py-y2)**2;
+  const t=c1/c2, sx=x1+t*vx, sy=y1+t*vy;
+  return (px-sx)**2+(py-sy)**2;
+}
+function hitStroke(stk,x,y,r){
+  if(stk.tool!=='pen') return false; const r2=r*r;
+  for(let i=1;i<stk.points.length;i++){
+    const a=stk.points[i-1], b=stk.points[i];
+    if(segDist2(a.x,a.y,b.x,b.y,x,y)<=r2) return true;
+  } return false;
+}
+
+function createInk(ctx, host){
+  let drawing=false, current=null, activeId=null, ignoreTouches=false;
+  const state={ tool:'pen', color:'#e6e9ef', sizeMm:2.0, sizePx:mmToPx(2.0),
+                showLive:true, onLive:(_)=>{} };
+
+  function setTool(t){ state.tool=t; }
+  function setSizeMm(mm){ state.sizeMm=mm; state.sizePx=mmToPx(mm); }
+  function setShowLive(v){ state.showLive=v; }
+  function onLive(fn){ state.onLive=fn; }
+
+  host.addEventListener('pointerdown', (e)=>{
+    const isPen=e.pointerType==='pen', isTouch=e.pointerType==='touch';
+    if(isPen){ ignoreTouches=true; activeId=e.pointerId; host.setPointerCapture(e.pointerId); }
+    if(isTouch && (ignoreTouches || state.tool==='pen')) return;
+
+    if(state.tool==='hand'){
+      drawing=true; activeId=e.pointerId; host.setPointerCapture(e.pointerId);
+      host.dataset.panX0=e.clientX; host.dataset.panY0=e.clientY;
+      host.dataset.offX0=store.offsetX; host.dataset.offY0=store.offsetY; return;
+    }
+    if(state.tool==='eraser'){
+      drawing=true; activeId=e.pointerId; host.setPointerCapture(e.pointerId);
+      eraseAt(e); return;
+    }
+    drawing=true;
+    current={ tool:'pen', color:state.color, sizePx:state.sizePx, points:[] };
+    addPoint(current,e,host); addStroke(current);
+  });
+
+  host.addEventListener('pointermove', (e)=>{
+    if(state.showLive) state.onLive({ p:e.pressure||0, tx:e.tiltX||0, ty:e.tiltY||0 });
+    if(!drawing || e.pointerId!==activeId) return;
+
+    if(state.tool==='hand'){
+      const dx=e.clientX-Number(host.dataset.panX0);
+      const dy=e.clientY-Number(host.dataset.panY0);
+      store.offsetX=Number(host.dataset.offX0)+dx;
+      store.offsetY=Number(host.dataset.offY0)+dy;
+      redraw(ctx); return;
+    }
+    if(state.tool==='eraser'){ eraseAt(e); return; }
+
+    addPoint(current,e,host); redraw(ctx);
+  });
+
+  host.addEventListener('pointerup', (e)=>{
+    if(e.pointerId!==activeId) return;
+    drawing=false; activeId=null; current=null;
+    setTimeout(()=>{ ignoreTouches=false; },120);
+  });
+  host.addEventListener('pointercancel', ()=>{
+    drawing=false; activeId=null; current=null; ignoreTouches=false;
+  });
+
+  host.addEventListener('wheel', (e)=>{
+    e.preventDefault();
+    const s0=store.scale, delta=Math.sign(e.deltaY)*-0.07;
+    const s1=clamp(store.scale*(1+delta), 0.25, 4);
+    const rect=host.getBoundingClientRect();
+    const cx=e.clientX-rect.left-store.offsetX;
+    const cy=e.clientY-rect.top -store.offsetY;
+    store.offsetX -= cx*(s1/s0 - 1);
+    store.offsetY -= cy*(s1/s0 - 1);
+    store.scale=s1; redraw(ctx);
+  }, {passive:false});
+
+  function addPoint(stk,e,host){
+    const rect=host.getBoundingClientRect();
+    const x=(e.clientX-rect.left-store.offsetX)/store.scale;
+    const y=(e.clientY-rect.top -store.offsetY)/store.scale;
+    stk.points.push({x,y,p:e.pressure||0,tx:e.tiltX||0,ty:e.tiltY||0});
+  }
+  function eraseAt(e){
+    const rect=host.getBoundingClientRect();
+    const x=(e.clientX-rect.left-store.offsetX)/store.scale;
+    const y=(e.clientY-rect.top -store.offsetY)/store.scale;
+    const r=10/store.scale;
+    store.strokes = store.strokes.filter(stk=>!hitStroke(stk,x,y,r));
+    redraw(ctx);
+  }
+  return { setTool, setSizeMm, setShowLive, onLive };
+}
+
+/* ===== 3) UI結線 ===== */
+const $ = s=>document.querySelector(s);
+const $$ = s=>Array.from(document.querySelectorAll(s));
+const canvas = $('#stage'), host = $('#canvasHost');
+const ctx = canvas.getContext('2d');
+
+function resizeCanvas(){
+  const dpr=Math.max(1, Math.min(2, window.devicePixelRatio||1));
+  const rect=host.getBoundingClientRect();
+  canvas.width = Math.floor(rect.width * dpr);
+  canvas.height= Math.floor(rect.height* dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  redraw(ctx);
+}
+addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+const ink = createInk(ctx, host);
+
+/* 右クリックで一時ハンド */
+let rightDown=false, prevTool='pen';
+host.addEventListener('pointerdown', e=>{
+  if(e.button===2){ rightDown=true; prevTool=currentTool(); ink.setTool('hand'); }
+});
+addEventListener('pointerup', e=>{
+  if(rightDown && e.button===2){ rightDown=false; ink.setTool(prevTool); selectTool(prevTool); }
+});
+addEventListener('contextmenu', e=>{
+  if(e.target===host || e.target===canvas) e.preventDefault();
+});
+
+/* HUD/設定/ツール */
+const hudTool=$('#hudTool'), hudSize=$('#hudSize'), hudPressure=$('#hudPressure'),
+      hudTilt=$('#hudTilt'), hudScale=$('#hudScale');
+const penSize=$('#penSize'), unitMM=$('#unitMM'), unitPX=$('#unitPX'), unitPT=$('#unitPT'),
+      showLive=$('#showLive');
+
+function pxToPt(px){ return px * 72/96; }
+function updateUnits(){
+  const mm=Number(penSize.value), px=mmToPx(mm), pt=pxToPt(px);
+  unitMM.textContent=`${mm.toFixed(1)} mm`;
+  unitPX.textContent=`${px.toFixed(1)} px`;
+  unitPT.textContent=`${pt.toFixed(1)} pt`;
+  hudSize.textContent=`Size: ${mm.toFixed(1)} mm (${px.toFixed(1)} px / ${pt.toFixed(1)} pt)`;
+  ink.setSizeMm(mm);
+}
+penSize.addEventListener('input', updateUnits, {passive:true}); updateUnits();
+showLive.addEventListener('change', ()=> ink.setShowLive(showLive.checked), {passive:true});
+
+ink.onLive(({p,tx,ty})=>{
+  hudPressure.textContent=`Pressure: ${p.toFixed(2)}`;
+  hudTilt.textContent=`Tilt: ${tx|0}/${ty|0}`;
+  hudScale.textContent=`Scale: ${(store.scale*100)|0}%`;
+});
+
+function currentTool(){
+  const a = $('#toolbar .tb-btn.active'); return a?.dataset.tool || 'pen';
+}
+function selectTool(tool){
+  $$('#toolbar .tb-btn').forEach(b=>b.classList.remove('active'));
+  const t = document.querySelector(`#toolbar .tb-btn[data-tool="${tool}"]`);
+  if(t){ t.classList.add('active'); }
+  hudTool.textContent = `Tool: ${tool[0].toUpperCase()+tool.slice(1)}`;
+  ink.setTool(tool);
+  if(tool==='keyboard') openDialog('#dlgKeyboard');
+  if(tool==='gear') openDialog('#dlgGear');
+}
+$$('#toolbar .tb-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    const action = btn.dataset.action;
+    if(action==='clearAll'){
+      if(confirm('全ての描画を消去します。よろしいですか？')){ clearAll(); redraw(ctx); }
+      return;
+    }
+    selectTool(btn.dataset.tool);
+  }, {passive:true});
+});
+selectTool('pen');
+
+/* ダイアログ: × / 背景クリック / ESC で閉じる */
+function bindDialog(dlg){
+  dlg.querySelectorAll('[data-close]').forEach(x=>x.addEventListener('click',()=>dlg.close()));
+  dlg.addEventListener('cancel', e=>{ e.preventDefault(); dlg.close(); });
+  dlg.addEventListener('click', e=>{ if(e.target===dlg) dlg.close(); });
+}
+function openDialog(sel){
+  const dlg=$(sel); if(!dlg) return;
+  if(typeof dlg.showModal==='function') dlg.showModal(); bindDialog(dlg);
+}
+</script>
 </body>
 </html>
