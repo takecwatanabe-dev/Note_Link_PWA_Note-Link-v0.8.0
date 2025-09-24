@@ -1,6 +1,6 @@
 <!doctype html><html lang="ja"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Note Link — v0.8.0-compat-02b-fix3</title>
+<title>Note Link — v0.8.0-compat-02b-fix4</title>
 <style>
 :root{
   --ink:#e6f1ff; --ink-dim:#9bd6e9; --bg:#0b1020;
@@ -120,7 +120,7 @@ header.topbar{
   <button class="btn" id="btnPrint">印刷</button>
   <button class="btn" id="btnPng">PNG</button>
   <button class="btn" id="btnShare">共有</button>
-  <span class="build">build: compat-02b-fix3</span>
+  <span class="build">build: compat-02b-fix4</span>
 </header>
 
 <aside class="sidebar" id="sidebar">
@@ -200,8 +200,8 @@ const cvGuide=$('#guide'), ctxGuide=cvGuide.getContext('2d');
 const cv=$('#paint'), ctx=cv.getContext('2d',{alpha:true});
 const textLayer=$('#textLayer'), viewport=$('#viewport');
 
-/* ===== version (← DOM取得後に実行！) ===== */
-const APP_VERSION="v0.8.0", BUILD_ID="compat-02b-fix3";
+/* ===== version（DOM取得後に反映） ===== */
+const APP_VERSION="v0.8.0", BUILD_ID="compat-02b-fix4";
 const strongEl=topbar.querySelector('strong'); if(strongEl) strongEl.textContent=`Note Link ${APP_VERSION} / No.13`;
 const buildEl=document.querySelector('.build'); if(buildEl) buildEl.textContent=`build: ${BUILD_ID}`;
 document.title=`Note Link — ${APP_VERSION}-${BUILD_ID}`;
@@ -236,8 +236,9 @@ function resize(){
   });
   drawGrid();
 
-  if(prevURL){ const img=new Image(); img.onload=()=>{ ctx.drawImage(img,0,0,prevW,prevH,0,0,cv.width,cv.height); resizeLock=false; }; img.src=prevURL; }
-  else resizeLock=false;
+  if(prevURL){
+    const img=new Image(); img.onload=()=>{ ctx.drawImage(img,0,0,prevW,prevH,0,0,cv.width,cv.height); resizeLock=false; }; img.src=prevURL;
+  }else resizeLock=false;
 }
 addEventListener('resize', resize);
 addEventListener('orientationchange', ()=>setTimeout(resize,50));
@@ -366,7 +367,7 @@ function hexA(hex,a){const m=/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(he
   const r=parseInt(m[1],16),g=parseInt(m[2],16),b=parseInt(m[3],16); return `rgba(${r},${g},${b},${a??1})`;}
 function pt(e){ const r=cv.getBoundingClientRect(); return {x:(e.clientX-r.left)/zoom*DPR, y:(e.clientY-r.top)/zoom*DPR} }
 
-let drawing=false, startPt=null, panning=false, panStart=null;
+let drawing=false, startPt=null, panning=false;
 function snapToGrid(p){ if(!gridOn) return p; const g=mmToPx(gridStepMM); return { x:Math.round(p.x/g)*g, y:Math.round(p.y/g)*g }; }
 function snapLine(p0,p1){
   if(gridFirst){ const a0=snapToGrid(p0), a1=snapToGrid(p1); return {x:a1.x,y:a1.y,ang:Math.atan2(a1.y-a0.y,a1.x-a0.x)}; }
@@ -398,12 +399,11 @@ async function undo(){ if(!hist.length) return; const cur=snapshot(); const prev
 async function redo(){ const next=redoStack.pop(); if(!next) return; hist.push(snapshot()); await restore(next); }
 
 /* ==== pointer ==== */
+let straightKey=false;
 cv.addEventListener('pointerdown', e=>{
   if(tool==='hand'){
-    panning=true;
-    const tr=getComputedStyle(viewport).translate.split(' ');
-    panStart={x:e.clientX,y:e.clientY, vx:parseFloat(tr[0])||0, vy:parseFloat(tr[1])||0};
-    return;
+    // CSS translate をそのまま増減
+    return panning=true;
   }
   e.preventDefault(); cv.setPointerCapture(e.pointerId);
   setCtx(); let p=pt(e); const straight=(straightKey || $('#uiStraight').checked);
@@ -414,8 +414,8 @@ cv.addEventListener('pointerdown', e=>{
 cv.addEventListener('pointermove', e=>{
   if(tool==='hand' && panning){
     const prev=getComputedStyle(viewport).translate.split(' ');
-    const vx=parseFloat(prev[0])||0, vy=parseFloat(prev[1])||0;
-    viewport.style.translate=`${vx + e.movementX}px ${vy + e.movementY}px`;
+    const vx=(parseFloat(prev[0])||0)+e.movementX, vy=(parseFloat(prev[1])||0)+e.movementY;
+    viewport.style.translate=`${vx}px ${vy}px`;
     return;
   }
   if(!drawing) return;
