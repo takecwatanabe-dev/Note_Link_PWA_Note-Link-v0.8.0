@@ -1,6 +1,6 @@
 <!doctype html><html lang="ja"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Note Link — v0.8.0-compat-02b-fix8</title>
+<title>NOTE LINK — V0.8.0-COMPAT-02B-FIX9</title>
 <style>
 :root{
   --ink:#e6f1ff; --ink-dim:#9bd6e9; --bg:#0b1020;
@@ -13,7 +13,7 @@
 
 /* 固定ヘッダ */
 header.topbar{
-  position:fixed; top:0; left:0; right:0; z-index:2000;
+  position:fixed; top:0; left:0; right:0; z-index:5000;
   height:var(--topbar-h); display:flex; align-items:center; gap:8px; padding:0 10px; font-size:12px; color:#fff;
   background:linear-gradient(0deg,rgba(42,84,255,.16),rgba(42,84,255,.16)),var(--accent);
   border-bottom:1px solid rgba(255,255,255,.15)
@@ -28,12 +28,14 @@ header.topbar{
 #stage{position:absolute; inset:0; padding-left:var(--toolbar-w)}
 #viewport{position:absolute; inset:0; transform-origin:0 0}
 
-/* サイドバー */
+/* サイドバー（クリック阻害ゼロ） */
 .sidebar{
-  position:fixed; z-index:1500; left:0; top:var(--topbar-h); bottom:0; width:var(--toolbar-w);
+  position:fixed; z-index:4000; left:0; top:var(--topbar-h); bottom:0; width:var(--toolbar-w);
   display:flex; flex-direction:column; align-items:center;
   background:rgba(0,0,0,.86); box-shadow:0 0 0 1px var(--muted) inset;
+  pointer-events:auto !important;
 }
+.sidebar *{pointer-events:auto !important}
 .sidebar .rail{width:100%; padding:6px; display:flex; flex-direction:column; gap:8px}
 .tool{
   display:grid; place-items:center; width:100%; height:36px; border-radius:10px; cursor:pointer; user-select:none;
@@ -49,7 +51,7 @@ header.topbar{
 
 /* パネル */
 .panel{
-  position:absolute; z-index:1400; left:70px; top:calc(var(--topbar-h) + 10px);
+  position:absolute; z-index:4200; left:70px; top:calc(var(--topbar-h) + 10px);
   min-width:280px; max-width:320px; padding:8px 12px 10px; border-radius:14px; color:var(--ink);
   background:var(--panel); border:1px solid rgba(255,255,255,.14); box-shadow:var(--shadow);
   display:none; user-select:none; max-height:calc(100vh - var(--topbar-h) - 24px); overflow:auto
@@ -64,7 +66,7 @@ header.topbar{
 .panel .row input[type="range"]{flex:1; min-width:120px}
 .panel .row button{height:26px;padding:0 8px;border-radius:8px;border:1px solid #ffffff2e;background:#ffffff14;color:#fff;font-size:12px;white-space:nowrap}
 
-/* キーボード操作ボタン：2列グリッド */
+/* キーボードボタン2列（可変長対策） */
 #rowTextOps > .btn-grid{display:grid; grid-template-columns:repeat(2, minmax(96px, 1fr)); gap:6px; width:100%}
 
 /* キャンバス */
@@ -79,12 +81,12 @@ header.topbar{
 .note-text .del{position:absolute;right:-8px;top:-10px;font-size:11px;color:#fff;background:#0008;border:1px solid #fff3;border-radius:8px;padding:2px 6px;display:none}
 .note-text:focus-within .del{display:block}
 
-/* ツールチップ（設定は必ず外側上に） */
+/* ツールチップ（設定は外側上に） */
 [data-tip]{position:relative}
 [data-tip]::after{content:attr(data-tip);position:absolute;left:48px;top:50%;transform:translateY(-50%);
   background:#222a;color:#fff;font-size:12px;padding:4px 8px;border-radius:8px;white-space:nowrap;pointer-events:none;opacity:0;transition:.15s}
 [data-tip]:hover::after{opacity:1}
-.sidebar .tool[data-tool="settings"][data-tip]::after{left:8px;top:auto;bottom:calc(100% + 8px);transform:none;z-index:1800}
+.sidebar .tool[data-tool="settings"][data-tip]::after{left:8px;top:auto;bottom:calc(100% + 8px);transform:none;z-index:4800}
 
 @media print{
   header.topbar,.sidebar,.panel,[data-tip]::after{display:none!important}
@@ -94,7 +96,7 @@ header.topbar{
 </head>
 <body>
 <header class="topbar" id="topbar">
-  <strong id="verText">Note Link v0.8.0 / No.13</strong>
+  <strong id="verText">NOTE LINK V0.8.0 / No.13</strong>
   <span class="sp"></span>
   <button class="btn" id="btnZoomOut">−</button>
   <button class="btn" id="btnZoomReset">100%</button>
@@ -104,12 +106,12 @@ header.topbar{
   <button class="btn" id="btnPrint">印刷</button>
   <button class="btn" id="btnPng">PNG</button>
   <button class="btn" id="btnShare">共有</button>
-  <span class="build" id="buildText">build: compat-02b-fix8</span>
+  <span class="build" id="buildText">build: compat-02b-fix9</span>
 </header>
 
 <aside class="sidebar" id="sidebar">
-  <div class="rail">
-    <button class="tool" id="btnSidebarToggle" data-tool="toggle" data-tip="ツールバーの開閉">
+  <div class="rail" id="toolRail">
+    <button class="tool" data-tool="toggle" data-tip="ツールバーの開閉">
       <svg viewBox="0 0 24 24"><path d="M5 15 L12 7 L19 15 M19 15 L5 15"/></svg>
     </button>
     <button class="tool" data-tool="pen" data-tip="ペン">
@@ -140,7 +142,7 @@ header.topbar{
     <button class="close" id="panelClose" title="閉じる">☒</button>
   </div>
   <div class="row"><label>色</label><input type="color" id="uiColor" value="#cbe58a"></div>
-  <div class="row" id="rowSize"><label>太さ</label><input type="range" min="1" max="60" value="4" id="uiSize"><span id="uiSizeVal">4px (1.06 mm)</span></div>
+  <div class="row" id="rowSize"><label>太さ</label><input type="range" min="1" max="60" value="4" id="uiSize"><span id="uiSizeVal">4px</span></div>
   <div class="row" id="rowAlpha"><label>不透明度</label><input type="range" min="10" max="100" value="100" id="uiAlpha"><span id="uiAlphaVal">100%</span></div>
   <div class="row" id="rowLineCap"><label>端の形</label>
     <select id="uiCap"><option value="butt">□ 角</option><option value="round">● 丸</option></select>
@@ -183,23 +185,20 @@ header.topbar{
 
 <script>
 'use strict';
-
-/* ====== 基本ユーティリティ ====== */
 const $=s=>document.querySelector(s), $$=s=>Array.from(document.querySelectorAll(s));
-const DPR=Math.max(1, self.devicePixelRatio||1);
-
+const DPR=Math.max(1,devicePixelRatio||1);
 const topbar=$('#topbar'), sidebar=$('#sidebar'), panel=$('#panel');
 const cvGrid=$('#grid'), ctxGrid=cvGrid.getContext('2d');
 const cvGuide=$('#guide'), ctxGuide=cvGuide.getContext('2d');
 const cv=$('#paint'), ctx=cv.getContext('2d',{alpha:true});
 const viewport=$('#viewport'), textLayer=$('#textLayer');
 
-const APP_VERSION='v0.8.0', BUILD_ID='compat-02b-fix8';
-document.title=`Note Link — ${APP_VERSION}-${BUILD_ID}`;
-$('#verText').textContent=`Note Link ${APP_VERSION} / No.13`;
+const APP_VERSION='V0.8.0', BUILD_ID='compat-02b-fix9';
+document.title=`NOTE LINK — ${APP_VERSION}-${BUILD_ID}`;
+$('#verText').textContent=`NOTE LINK ${APP_VERSION} / No.13`;
 $('#buildText').textContent=`build: ${BUILD_ID}`;
 
-/* ====== レイアウト ====== */
+/* ===== レイアウト ===== */
 function applyBars(){ const h=Math.round(topbar.getBoundingClientRect().height)||44; document.documentElement.style.setProperty('--topbar-h', h+'px'); }
 let W=0,H=0, zoom=1, panX=0, panY=0;
 function updateViewportTransform(){ viewport.style.transform=`translate(${panX}px,${panY}px) scale(${zoom})`; }
@@ -218,7 +217,7 @@ addEventListener('resize', resize);
 addEventListener('orientationchange', ()=>setTimeout(resize,50));
 document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) setTimeout(resize,50); });
 
-/* ====== 状態 ====== */
+/* ===== 状態 ===== */
 let tool='pen';
 const perTool={
   pen:{color:'#cbe58a',size:4,alpha:1,cap:'butt',straight:false},
@@ -228,45 +227,39 @@ const perTool={
 let color=perTool.pen.color, size=perTool.pen.size, alpha=1, cap='butt';
 let straightToggle=false, straightKey=false;
 let gridOn=false, gridStepMM=10, gridColor='#3a4f7a', gridFirst=false;
-
-/* 追加：ペン拡張（宣言は1回だけ！） */
+/* ペン拡張 */
 let palmReject=true, pressureOn=true, tiltOn=true;
 const penRecent={active:false, ts:0};
 
-/* ====== ツール切替 ====== */
+/* ===== ツール結線はイベント委譲 ===== */
 function saveToolState(k){const p=perTool[k]||(perTool[k]={}); p.color=color; p.size=size; p.alpha=alpha; p.cap=cap; p.straight=!!straightToggle;}
 function loadToolState(k){const p=perTool[k]||{}; color=p.color??color; size=p.size??size; alpha=p.alpha??alpha; cap=p.cap??cap; straightToggle=!!p.straight;}
 function setActiveTool(t){
   saveToolState(tool); tool=t; loadToolState(t);
   $$('.tool').forEach(b=>b.classList.toggle('active', b.dataset.tool===t));
   $('#panelTool').textContent=t;
-
   $('#rowAlpha').style.display   = (t==='marker') ? '' : 'none';
   $('#rowLineCap').style.display = (t==='marker'||t==='pen') ? '' : 'none';
   $('#rowStraight').style.display= (t==='pen'||t==='marker') ? '' : 'none';
   $('#rowTextOps').style.display = (t==='keyboard') ? '' : 'none';
   $('#rowSize').style.display    = (t==='pen'||t==='marker'||t==='eraser') ? '' : 'none';
   $('#rowPenExt').style.display  = (t==='pen'||t==='marker') ? '' : 'none';
-
   syncUI();
 }
-$('#btnSidebarToggle').addEventListener('click', e=>{ e.stopPropagation(); sidebar.classList.toggle('collapsed'); });
-$$('.tool').forEach(btn=>{
-  if(btn.id==='btnSidebarToggle') return;
-  btn.addEventListener('click', e=>{
-    e.stopPropagation();
-    const t=btn.dataset.tool;
-    if(t==='settings'){
-      const show=!panel.classList.contains('show');
-      panel.classList.toggle('show', show);
-      btn.classList.toggle('active', show);
-      return;
-    }
-    setActiveTool(t);
-  });
+$('#toolRail').addEventListener('click', (e)=>{
+  const btn=e.target.closest('.tool'); if(!btn) return; e.preventDefault(); e.stopPropagation();
+  const t=btn.dataset.tool;
+  if(t==='toggle'){ sidebar.classList.toggle('collapsed'); return; }
+  if(t==='settings'){
+    const show=!panel.classList.contains('show');
+    panel.classList.toggle('show', show);
+    btn.classList.toggle('active', show);
+    return;
+  }
+  setActiveTool(t);
 });
 
-/* ====== パネル Drag/Close ====== */
+/* ===== パネル Drag/Close ===== */
 (()=>{
   const handle=$('#panelHandle'); let dragging=false, sx=0, sy=0, ox=0, oy=0, id=0;
   $('#panelClose').addEventListener('pointerdown', ev=>{ ev.stopPropagation(); }, {passive:false});
@@ -291,7 +284,7 @@ $$('.tool').forEach(btn=>{
   panel.addEventListener('pointercancel',up,{passive:false});
 })();
 
-/* ====== パネル inputs ====== */
+/* ===== パネル inputs ===== */
 const ui={ color:$('#uiColor'), size:$('#uiSize'), alpha:$('#uiAlpha'),
   sizeVal:$('#uiSizeVal'), alphaVal:$('#uiAlphaVal'), cap:$('#uiCap'),
   straight:$('#uiStraight'), gridFirst:$('#uiGridFirst'),
@@ -316,13 +309,13 @@ function onPanelChange(){
 }
 Object.values(ui).forEach(el=>el.addEventListener('input',onPanelChange));
 
-/* ====== ズーム ====== */
+/* ===== ズーム ===== */
 function setZoom(z){ zoom=Math.max(0.5,Math.min(3,z)); $('#btnZoomReset').textContent=Math.round(zoom*100)+'%'; updateViewportTransform(); resize(); }
 $('#btnZoomIn').addEventListener('click',()=>setZoom(zoom+0.1));
 $('#btnZoomOut').addEventListener('click',()=>setZoom(zoom-0.1));
 $('#btnZoomReset').addEventListener('click',()=>setZoom(1));
 
-/* ====== グリッド ====== */
+/* ===== グリッド ===== */
 function clear(c){ c.getContext('2d').clearRect(0,0,c.width,c.height) }
 function mmToPx(mm){ return mm*96/25.4*DPR }
 function drawGrid(){
@@ -334,7 +327,7 @@ function drawGrid(){
   s.stroke(); s.restore();
 }
 
-/* ====== 描画（ペン拡張対応） ====== */
+/* ===== 描画（ペン拡張） ===== */
 function setCtx(){
   ctx.lineCap=(tool==='marker'||tool==='pen')?cap:'round';
   if(tool==='marker'){ ctx.globalCompositeOperation='source-over'; ctx.strokeStyle=hexA(color,alpha) }
@@ -462,7 +455,7 @@ $('#btnShare').addEventListener('click',()=>{
   });
 });
 
-/* ====== init ====== */
+/* ===== init ===== */
 function init(){
   applyBars();
   updateViewportTransform();
@@ -471,6 +464,6 @@ function init(){
   panel.classList.remove('show'); // 起動時は閉
   $$('.tool[data-tool="settings"]').forEach(b=>b.classList.remove('active'));
 }
-init();
+document.addEventListener('DOMContentLoaded', init);
 </script>
 </body></html>
