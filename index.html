@@ -1,6 +1,6 @@
 <!doctype html><html lang="ja"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Note Link — v0.8.0-compat-02b-fix6</title>
+<title>Note Link — v0.8.0-compat-02b-fix7</title>
 <style>
 :root{
   --ink:#e6f1ff; --ink-dim:#9bd6e9; --bg:#0b1020;
@@ -62,7 +62,13 @@ header.topbar{
 .panel .row{display:flex; align-items:center; gap:10px; margin:6px 0}
 .panel .row label{width:100px;font-size:12px;color:var(--ink-dim)}
 .panel .row input[type="range"]{flex:1; min-width:120px}
-.panel .row button{height:26px;padding:0 8px;border-radius:8px;border:1px solid #ffffff2e;background:#ffffff14;color:#fff;font-size:12px}
+.panel .row button{height:26px;padding:0 8px;border-radius:8px;border:1px solid #ffffff2e;background:#ffffff14;color:#fff;font-size:12px;white-space:nowrap}
+
+/* キーボード操作ボタン：2列グリッド（自動で複数行） */
+#rowTextOps > .btn-grid{
+  display:grid; grid-template-columns:repeat(2, minmax(96px, 1fr));
+  gap:6px; width:100%;
+}
 
 /* キャンバス */
 #grid,#guide,#paint{position:absolute; left:var(--toolbar-w); top:0; right:0; bottom:0}
@@ -101,7 +107,7 @@ header.topbar{
   <button class="btn" id="btnPrint">印刷</button>
   <button class="btn" id="btnPng">PNG</button>
   <button class="btn" id="btnShare">共有</button>
-  <span class="build" id="buildText">build: compat-02b-fix6</span>
+  <span class="build" id="buildText">build: compat-02b-fix7</span>
 </header>
 
 <aside class="sidebar" id="sidebar">
@@ -152,7 +158,7 @@ header.topbar{
     <input type="color" id="uiGridColor" value="#3a4f7a"/>
   </div>
 
-  <!-- 追加: ペン拡張（UIは最小限） -->
+  <!-- ペン拡張 -->
   <div class="row" id="rowPenExt">
     <label>ペン拡張</label>
     <label><input type="checkbox" id="uiPalm" checked> パーム除外</label>
@@ -160,13 +166,16 @@ header.topbar{
     <label><input type="checkbox" id="uiTilt" checked> 傾き</label>
   </div>
 
-  <div class="row" id="rowTextOps" style="display:none; gap:6px">
+  <!-- キーボード操作（2列グリッド） -->
+  <div class="row" id="rowTextOps" style="display:none">
     <label>テキスト</label>
-    <button id="btnTextAdd"  title="テキストを追加">追加</button>
-    <button id="btnTextBold" title="太字">太字</button>
-    <button id="btnTextIt"   title="斜体">斜体</button>
-    <button id="btnTextDel"  title="選択削">選択削</button>
-    <button id="btnTextBoxDel" title="枠削">枠削</button>
+    <div class="btn-grid">
+      <button id="btnTextAdd"  title="テキストを追加">テキストを追加</button>
+      <button id="btnTextBold" title="太字">太字</button>
+      <button id="btnTextIt"   title="斜体">斜体</button>
+      <button id="btnTextDel"  title="選択削除">選択削除</button>
+      <button id="btnTextBoxDel" title="枠ごと削除">枠ごと削除</button>
+    </div>
   </div>
 </div>
 
@@ -190,7 +199,7 @@ const cvGuide=$('#guide'), ctxGuide=cvGuide.getContext('2d');
 const cv=$('#paint'), ctx=cv.getContext('2d',{alpha:true});
 const viewport=$('#viewport'), textLayer=$('#textLayer');
 
-const APP_VERSION='v0.8.0', BUILD_ID='compat-02b-fix6';
+const APP_VERSION='v0.8.0', BUILD_ID='compat-02b-fix7';
 document.title=`Note Link — ${APP_VERSION}-${BUILD_ID}`;
 $('#verText').textContent=`Note Link ${APP_VERSION} / No.13`;
 $('#buildText').textContent=`build: ${BUILD_ID}`;
@@ -200,8 +209,7 @@ function applyBars(){
   const h = Math.round(topbar.getBoundingClientRect().height) || 44;
   document.documentElement.style.setProperty('--topbar-h', h+'px');
 }
-let W=0,H=0, zoom=1;
-let panX=0, panY=0;
+let W=0,H=0, zoom=1, panX=0, panY=0;
 function updateViewportTransform(){ viewport.style.transform=`translate(${panX}px,${panY}px) scale(${zoom})`; }
 function resize(){
   applyBars();
@@ -231,7 +239,7 @@ let gridOn=false, gridStepMM=10, gridColor='#3a4f7a', gridFirst=false;
 
 /* 追加: ペン拡張設定 */
 let palmReject=true, pressureOn=true, tiltOn=true;
-const penRecent={active:false, ts:0}; // パーム除外判定用
+const penRecent={active:false, ts:0};
 
 /* ====== ツール切替 ====== */
 function saveToolState(k){const p=perTool[k]||(perTool[k]={}); p.color=color; p.size=size; p.alpha=alpha; p.cap=cap; p.straight=!!straightToggle;}
@@ -266,11 +274,25 @@ $$('.tool').forEach(btn=>{
   });
 });
 
-/* ====== パネル ドラッグ/クローズ ====== */
+/* ====== パネル ドラッグ/クローズ（☒のクリックを確実に） ====== */
 (()=>{
   const handle=$('#panelHandle'); let dragging=false, sx=0, sy=0, ox=0, oy=0, id=0;
-  function down(e){ dragging=true; id=e.pointerId; panel.setPointerCapture(id);
-    sx=e.clientX; sy=e.clientY; const r=panel.getBoundingClientRect(); ox=r.left; oy=r.top; e.preventDefault(); }
+
+  // ☒ 上でのドラッグ開始・クリック潰しを抑止
+  $('#panelClose').addEventListener('pointerdown', ev=>{ ev.stopPropagation(); }, {passive:false});
+  $('#panelClose').addEventListener('click',()=>{
+    panel.classList.remove('show');
+    $$('.tool[data-tool="settings"]').forEach(b=>b.classList.remove('active'));
+  });
+
+  function down(e){
+    // 左ボタンかつ ☒ 以外のみドラッグ開始
+    if(e.button!==0) return;
+    if(e.target.closest('#panelClose')) return;
+    dragging=true; id=e.pointerId; panel.setPointerCapture(id);
+    sx=e.clientX; sy=e.clientY; const r=panel.getBoundingClientRect(); ox=r.left; oy=r.top;
+    e.preventDefault();
+  }
   function move(e){ if(!dragging||e.pointerId!==id) return;
     const nx=ox+(e.clientX-sx), ny=oy+(e.clientY-sy);
     panel.style.left=Math.max(56,nx)+'px';
@@ -282,10 +304,6 @@ $$('.tool').forEach(btn=>{
   panel.addEventListener('pointermove',move,{passive:false});
   panel.addEventListener('pointerup',up,{passive:false});
   panel.addEventListener('pointercancel',up,{passive:false});
-  $('#panelClose').addEventListener('click',()=>{
-    panel.classList.remove('show');
-    $$('.tool[data-tool="settings"]').forEach(b=>b.classList.remove('active'));
-  });
 })();
 
 /* ====== パネル inputs ====== */
@@ -366,46 +384,33 @@ async function undo(){ if(!hist.length) return; const cur=snapshot(); const prev
 async function redo(){ const next=redoStack.pop(); if(!next) return; hist.push(snapshot()); await restore(next); }
 $('#btnUndo').addEventListener('click',()=>undo()); $('#btnRedo').addEventListener('click',()=>redo());
 
-/* ====== パームリジェクション＆圧力・傾き処理 ====== */
+/* ====== パーム/圧力/傾き ====== */
+let drawing=false, startPt=null, panning=false;
+const penRecent={active:false, ts:0};
+function updatePenRecent(e){ if(e.pointerType==='pen'){ penRecent.active=true; penRecent.ts=performance.now(); } }
 function isPalmTouch(e){
   if(!palmReject) return false;
   const now=performance.now();
-  // 直近にペンイベントがあったらタッチを除外
   if(e.pointerType==='touch' && penRecent.active && (now-penRecent.ts)<1200) return true;
-  // 大接触面（幅×高さが大きい）も除外目安
-  const area=(e.width||0)*(e.height||0);
-  if(e.pointerType==='touch' && area>1200) return true;
+  const area=(e.width||0)*(e.height||0); if(e.pointerType==='touch' && area>1200) return true;
   return false;
 }
 function dynamicWidthFromPen(e, basePx){
   let w=basePx;
   if(pressureOn && typeof e.pressure==='number'){
-    const p = Math.max(0.05, Math.min(1, e.pressure||0.5));
-    w = basePx * (0.4 + 0.9*p);
+    const p=Math.max(0.05,Math.min(1,e.pressure||0.5)); w=basePx*(0.4+0.9*p);
   }
-  if(tiltOn){
-    // tiltX/Y: -90〜90。傾けるほど線を太くする（特にマーカー）
-    const t = Math.hypot(e.tiltX||0, e.tiltY||0)/90; // 0〜~1.4
-    const k = (tool==='marker'? 0.9 : 0.4);
-    w *= (1 + k*Math.min(1,t));
-  }
+  if(tiltOn){ const t=Math.hypot(e.tiltX||0,e.tiltY||0)/90; const k=(tool==='marker'?0.9:0.4); w*= (1 + k*Math.min(1,t)); }
   return w;
-}
-function updatePenRecent(e){
-  if(e.pointerType==='pen'){ penRecent.active=true; penRecent.ts=performance.now(); }
 }
 
 /* ポインタ */
-let drawing=false, startPt=null, panning=false;
 cv.addEventListener('pointerdown', e=>{
   updatePenRecent(e);
-  if(isPalmTouch(e)) return; // パーム無視
+  if(isPalmTouch(e)) return;
   if(tool==='hand'){ panning=true; cv.setPointerCapture(e.pointerId); return; }
   e.preventDefault(); cv.setPointerCapture(e.pointerId);
-  setCtx();
-  // 圧力・傾きで lineWidth を都度更新（最初の点）
-  ctx.lineWidth = dynamicWidthFromPen(e,(size||4))*DPR;
-
+  setCtx(); ctx.lineWidth = dynamicWidthFromPen(e,(size||4))*DPR;
   let p=pt(e); const straight=(straightKey || $('#uiStraight').checked);
   startPt=(gridFirst && straight)?snapToGrid(p):p; drawing=true; if(!straight){ ctx.beginPath(); ctx.moveTo(startPt.x,startPt.y); }
   pushHistory();
@@ -415,10 +420,7 @@ cv.addEventListener('pointermove', e=>{
   if(isPalmTouch(e)) return;
   if(tool==='hand' && panning){ panX += e.movementX; panY += e.movementY; updateViewportTransform(); return; }
   if(!drawing) return;
-
-  // 可変幅
   ctx.lineWidth = dynamicWidthFromPen(e,(size||4))*DPR;
-
   let p=pt(e); const straight=(straightKey || $('#uiStraight').checked);
   if(!straight){ ctx.lineTo(p.x,p.y); ctx.stroke(); return; }
   const sp=snapLine(startPt,p);
@@ -456,7 +458,7 @@ $('#btnTextBoxDel').addEventListener('click',()=>{
   let el=sel.anchorNode; while(el && !(el instanceof HTMLElement && el.classList.contains('note-text'))) el=el.parentNode; if(el) el.remove();
 });
 
-/* 画像出力/印刷/共有 */
+/* 出力 */
 function composite(){
   const out=document.createElement('canvas'); out.width=cv.width; out.height=cv.height; const o=out.getContext('2d');
   o.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--bg').trim()||'#0b1020'; o.fillRect(0,0,out.width,out.height);
