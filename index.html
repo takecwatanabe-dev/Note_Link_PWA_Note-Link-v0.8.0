@@ -1,6 +1,6 @@
 <!doctype html><html lang="ja"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Note Link — v0.8.0-compat-02b-fix7</title>
+<title>Note Link — v0.8.0-compat-02b-fix8</title>
 <style>
 :root{
   --ink:#e6f1ff; --ink-dim:#9bd6e9; --bg:#0b1020;
@@ -64,11 +64,8 @@ header.topbar{
 .panel .row input[type="range"]{flex:1; min-width:120px}
 .panel .row button{height:26px;padding:0 8px;border-radius:8px;border:1px solid #ffffff2e;background:#ffffff14;color:#fff;font-size:12px;white-space:nowrap}
 
-/* キーボード操作ボタン：2列グリッド（自動で複数行） */
-#rowTextOps > .btn-grid{
-  display:grid; grid-template-columns:repeat(2, minmax(96px, 1fr));
-  gap:6px; width:100%;
-}
+/* キーボード操作ボタン：2列グリッド */
+#rowTextOps > .btn-grid{display:grid; grid-template-columns:repeat(2, minmax(96px, 1fr)); gap:6px; width:100%}
 
 /* キャンバス */
 #grid,#guide,#paint{position:absolute; left:var(--toolbar-w); top:0; right:0; bottom:0}
@@ -82,7 +79,7 @@ header.topbar{
 .note-text .del{position:absolute;right:-8px;top:-10px;font-size:11px;color:#fff;background:#0008;border:1px solid #fff3;border-radius:8px;padding:2px 6px;display:none}
 .note-text:focus-within .del{display:block}
 
-/* ツールチップ：設定は必ず外側（上） */
+/* ツールチップ（設定は必ず外側上に） */
 [data-tip]{position:relative}
 [data-tip]::after{content:attr(data-tip);position:absolute;left:48px;top:50%;transform:translateY(-50%);
   background:#222a;color:#fff;font-size:12px;padding:4px 8px;border-radius:8px;white-space:nowrap;pointer-events:none;opacity:0;transition:.15s}
@@ -107,7 +104,7 @@ header.topbar{
   <button class="btn" id="btnPrint">印刷</button>
   <button class="btn" id="btnPng">PNG</button>
   <button class="btn" id="btnShare">共有</button>
-  <span class="build" id="buildText">build: compat-02b-fix7</span>
+  <span class="build" id="buildText">build: compat-02b-fix8</span>
 </header>
 
 <aside class="sidebar" id="sidebar">
@@ -157,24 +154,20 @@ header.topbar{
     <select id="uiGridStep"><option value="5">5mm</option><option value="10" selected>10mm</option></select>
     <input type="color" id="uiGridColor" value="#3a4f7a"/>
   </div>
-
-  <!-- ペン拡張 -->
   <div class="row" id="rowPenExt">
     <label>ペン拡張</label>
     <label><input type="checkbox" id="uiPalm" checked> パーム除外</label>
     <label><input type="checkbox" id="uiPressure" checked> 圧力</label>
     <label><input type="checkbox" id="uiTilt" checked> 傾き</label>
   </div>
-
-  <!-- キーボード操作（2列グリッド） -->
   <div class="row" id="rowTextOps" style="display:none">
     <label>テキスト</label>
     <div class="btn-grid">
-      <button id="btnTextAdd"  title="テキストを追加">テキストを追加</button>
-      <button id="btnTextBold" title="太字">太字</button>
-      <button id="btnTextIt"   title="斜体">斜体</button>
-      <button id="btnTextDel"  title="選択削除">選択削除</button>
-      <button id="btnTextBoxDel" title="枠ごと削除">枠ごと削除</button>
+      <button id="btnTextAdd">テキストを追加</button>
+      <button id="btnTextBold">太字</button>
+      <button id="btnTextIt">斜体</button>
+      <button id="btnTextDel">選択削除</button>
+      <button id="btnTextBoxDel">枠ごと削除</button>
     </div>
   </div>
 </div>
@@ -189,7 +182,9 @@ header.topbar{
 </div></div>
 
 <script>
-/* ====== 安全な初期化 ====== */
+'use strict';
+
+/* ====== 基本ユーティリティ ====== */
 const $=s=>document.querySelector(s), $$=s=>Array.from(document.querySelectorAll(s));
 const DPR=Math.max(1, self.devicePixelRatio||1);
 
@@ -199,26 +194,23 @@ const cvGuide=$('#guide'), ctxGuide=cvGuide.getContext('2d');
 const cv=$('#paint'), ctx=cv.getContext('2d',{alpha:true});
 const viewport=$('#viewport'), textLayer=$('#textLayer');
 
-const APP_VERSION='v0.8.0', BUILD_ID='compat-02b-fix7';
+const APP_VERSION='v0.8.0', BUILD_ID='compat-02b-fix8';
 document.title=`Note Link — ${APP_VERSION}-${BUILD_ID}`;
 $('#verText').textContent=`Note Link ${APP_VERSION} / No.13`;
 $('#buildText').textContent=`build: ${BUILD_ID}`;
 
 /* ====== レイアウト ====== */
-function applyBars(){
-  const h = Math.round(topbar.getBoundingClientRect().height) || 44;
-  document.documentElement.style.setProperty('--topbar-h', h+'px');
-}
+function applyBars(){ const h=Math.round(topbar.getBoundingClientRect().height)||44; document.documentElement.style.setProperty('--topbar-h', h+'px'); }
 let W=0,H=0, zoom=1, panX=0, panY=0;
 function updateViewportTransform(){ viewport.style.transform=`translate(${panX}px,${panY}px) scale(${zoom})`; }
 function resize(){
   applyBars();
-  const r = viewport.getBoundingClientRect();
-  W = Math.max(1, Math.round(r.width/zoom));
-  H = Math.max(1, Math.round(r.height/zoom));
+  const r=viewport.getBoundingClientRect();
+  W=Math.max(1, Math.round(r.width/zoom));
+  H=Math.max(1, Math.round(r.height/zoom));
   for(const c of [cvGrid,cvGuide,cv]){
-    c.width = Math.round(W*DPR); c.height = Math.round(H*DPR);
-    c.style.width = (W*zoom)+'px'; c.style.height=(H*zoom)+'px';
+    c.width=Math.round(W*DPR); c.height=Math.round(H*DPR);
+    c.style.width=(W*zoom)+'px'; c.style.height=(H*zoom)+'px';
   }
   drawGrid();
 }
@@ -237,7 +229,7 @@ let color=perTool.pen.color, size=perTool.pen.size, alpha=1, cap='butt';
 let straightToggle=false, straightKey=false;
 let gridOn=false, gridStepMM=10, gridColor='#3a4f7a', gridFirst=false;
 
-/* 追加: ペン拡張設定 */
+/* 追加：ペン拡張（宣言は1回だけ！） */
 let palmReject=true, pressureOn=true, tiltOn=true;
 const penRecent={active:false, ts:0};
 
@@ -274,24 +266,17 @@ $$('.tool').forEach(btn=>{
   });
 });
 
-/* ====== パネル ドラッグ/クローズ（☒のクリックを確実に） ====== */
+/* ====== パネル Drag/Close ====== */
 (()=>{
   const handle=$('#panelHandle'); let dragging=false, sx=0, sy=0, ox=0, oy=0, id=0;
-
-  // ☒ 上でのドラッグ開始・クリック潰しを抑止
   $('#panelClose').addEventListener('pointerdown', ev=>{ ev.stopPropagation(); }, {passive:false});
   $('#panelClose').addEventListener('click',()=>{
     panel.classList.remove('show');
     $$('.tool[data-tool="settings"]').forEach(b=>b.classList.remove('active'));
   });
-
-  function down(e){
-    // 左ボタンかつ ☒ 以外のみドラッグ開始
-    if(e.button!==0) return;
-    if(e.target.closest('#panelClose')) return;
+  function down(e){ if(e.button!==0) return; if(e.target.closest('#panelClose')) return;
     dragging=true; id=e.pointerId; panel.setPointerCapture(id);
-    sx=e.clientX; sy=e.clientY; const r=panel.getBoundingClientRect(); ox=r.left; oy=r.top;
-    e.preventDefault();
+    sx=e.clientX; sy=e.clientY; const r=panel.getBoundingClientRect(); ox=r.left; oy=r.top; e.preventDefault();
   }
   function move(e){ if(!dragging||e.pointerId!==id) return;
     const nx=ox+(e.clientX-sx), ny=oy+(e.clientY-sy);
@@ -361,7 +346,7 @@ function hexA(hex,a){const m=/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(he
 function pt(e){ const r=cv.getBoundingClientRect(); return {x:(e.clientX-r.left)/zoom*DPR, y:(e.clientY-r.top)/zoom*DPR} }
 function snapToGrid(p){ if(!gridOn) return p; const g=mmToPx(gridStepMM); return { x:Math.round(p.x/g)*g, y:Math.round(p.y/g)*g }; }
 function snapLine(p0,p1){
-  if(gridFirst){ const a0=snapToGrid(p0), a1=snapToGrid(p1); return {x:a1.x,y:a1.y,ang:Math.atan2(a1.y-a0.y,a1.x-a0.x)}; }
+  if(gridFirst){ const a0=snapToGrid(p0), a1=snapToGrid(p1); return {x=a1.x,y=a1.y,ang:Math.atan2(a1.y-a0.y,a1.x-a0.x)}; }
   const dx=p1.x-p0.x, dy=p1.y-p0.y, step=Math.PI/12; let ang=Math.round(Math.atan2(dy,dx)/step)*step;
   let len=Math.hypot(dx,dy), x=p0.x+Math.cos(ang)*len, y=p0.y+Math.sin(ang)*len; if(gridOn){ ({x,y}=snapToGrid({x,y})); } return {x,y,ang};
 }
@@ -373,20 +358,18 @@ function drawHUD(p,ang){
   const deg=(ang*180/Math.PI); s.fillText((deg>=0?'+':'')+Math.round(deg)+'°',0,-5*d); s.restore();
 }
 
-/* 履歴（最小） */
+/* 履歴 */
 const hist=[], redoStack=[];
 function snapshot(){ return { url: cv.toDataURL(), texts: textLayer.innerHTML }; }
 function pushHistory(){ hist.push(snapshot()); if(hist.length>10) hist.shift(); redoStack.length=0; }
 async function restore(snap){ clear(cv); textLayer.innerHTML=snap?.texts||''; if(!snap?.url) return;
   await new Promise(res=>{ const img=new Image(); img.onload=()=>{ ctx.drawImage(img,0,0); res(); }; img.src=snap.url; });
 }
-async function undo(){ if(!hist.length) return; const cur=snapshot(); const prev=hist.pop(); redoStack.push(cur); await restore(prev); }
-async function redo(){ const next=redoStack.pop(); if(!next) return; hist.push(snapshot()); await restore(next); }
-$('#btnUndo').addEventListener('click',()=>undo()); $('#btnRedo').addEventListener('click',()=>redo());
+$('#btnUndo').addEventListener('click',async()=>{ if(!hist.length) return; const cur=snapshot(); const prev=hist.pop(); redoStack.push(cur); await restore(prev); });
+$('#btnRedo').addEventListener('click',async()=>{ const next=redoStack.pop(); if(!next) return; hist.push(snapshot()); await restore(next); });
 
-/* ====== パーム/圧力/傾き ====== */
+/* パーム/圧力/傾き */
 let drawing=false, startPt=null, panning=false;
-const penRecent={active:false, ts:0};
 function updatePenRecent(e){ if(e.pointerType==='pen'){ penRecent.active=true; penRecent.ts=performance.now(); } }
 function isPalmTouch(e){
   if(!palmReject) return false;
@@ -397,9 +380,7 @@ function isPalmTouch(e){
 }
 function dynamicWidthFromPen(e, basePx){
   let w=basePx;
-  if(pressureOn && typeof e.pressure==='number'){
-    const p=Math.max(0.05,Math.min(1,e.pressure||0.5)); w=basePx*(0.4+0.9*p);
-  }
+  if(pressureOn && typeof e.pressure==='number'){ const p=Math.max(0.05,Math.min(1,e.pressure||0.5)); w=basePx*(0.4+0.9*p); }
   if(tiltOn){ const t=Math.hypot(e.tiltX||0,e.tiltY||0)/90; const k=(tool==='marker'?0.9:0.4); w*= (1 + k*Math.min(1,t)); }
   return w;
 }
