@@ -24,7 +24,6 @@ export function createInk(ctx, host){
   host.addEventListener('pointerdown', (e)=>{
     const isPen = e.pointerType === 'pen';
     const isTouch = e.pointerType === 'touch';
-
     if(isPen){ ignoreTouches = true; activePointerId = e.pointerId; host.setPointerCapture(e.pointerId); }
     if(isTouch && (ignoreTouches || state.tool==='pen')) return;
 
@@ -35,8 +34,7 @@ export function createInk(ctx, host){
     }
     if(state.tool === 'eraser'){
       drawing = true; activePointerId = e.pointerId; host.setPointerCapture(e.pointerId);
-      eraseAt(e);
-      return;
+      eraseAt(e); return;
     }
 
     drawing = true;
@@ -54,13 +52,10 @@ export function createInk(ctx, host){
       const dy = e.clientY - Number(host.dataset.panY0);
       store.offsetX = Number(host.dataset.offX0) + dx;
       store.offsetY = Number(host.dataset.offY0) + dy;
-      redraw(ctx);
-      return;
+      redraw(ctx); return;
     }
-    if(state.tool === 'eraser'){
-      eraseAt(e);
-      return;
-    }
+    if(state.tool === 'eraser'){ eraseAt(e); return; }
+
     addPoint(current, e, host);
     redraw(ctx);
   });
@@ -70,12 +65,11 @@ export function createInk(ctx, host){
     drawing = false; activePointerId = null; current = null;
     setTimeout(()=>{ ignoreTouches = false; }, 120);
   });
-
   host.addEventListener('pointercancel', ()=>{
     drawing = false; activePointerId = null; current = null; ignoreTouches = false;
   });
 
-  // ホイールで拡大縮小
+  // ホイール拡大縮小
   host.addEventListener('wheel', (e)=>{
     e.preventDefault();
     const scaleBefore = store.scale;
