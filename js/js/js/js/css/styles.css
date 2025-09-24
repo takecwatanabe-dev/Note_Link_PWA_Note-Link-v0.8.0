@@ -1,0 +1,36 @@
+:root{
+  --bg:#0f1115; --panel:#181b22; --line:#2a2f3a; --text:#e6e9ef; --accent:#50c878; --danger:#e45858;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font:14px/1.6 system-ui, "Noto Sans JP", sans-serif}
+.topbar{display:flex;align-items:center;gap:.75rem;padding:.5rem .75rem;background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20}
+.topbar .app-title{font-weight:700;letter-spacing:.04em}
+.topbar .spacer{flex:1}
+.topbar .version{opacity:.8}
+.layout{display:grid;grid-template-columns:64px 1fr;min-height:calc(100vh - 44px)}
+.toolbar{display:flex;flex-direction:column;gap:.5rem;padding:.5rem;background:var(--panel);border-right:1px solid var(--line);z-index:30}
+.tb-btn{display:grid;place-items:center;height:48px;border:1px solid var(--line);background:#13161c;color:var(--text);border-radius:12px;font-size:20px;cursor:pointer}
+.tb-btn:hover{outline:2px solid var(--accent)}
+.tb-btn.active{background:#0b2c21}
+.tb-btn.danger{border-color:#5b2b2b}
+.stage-wrap{position:relative;overflow:hidden}
+.canvas-host{width:100%;height:calc(100vh - 44px);touch-action:none}
+#stage{width:100%;height:100%;display:block;background:#0b0e14}
+.hud{position:absolute;left:8px;bottom:8px;display:flex;gap:.75rem;background:#0b0e14cc;padding:.4rem .6rem;border:1px solid var(--line);border-radius:10px;backdrop-filter:blur(6px)}
+
+.modal{border:none;border-radius:16px;background:var(--panel);color:var(--text);padding:0;max-width:min(560px, calc(100vw - 24px))}
+.modal::backdrop{background:#0006}
+.modal header{display:flex;align-items:center;gap:.5rem;padding:.6rem .8rem;border-bottom:1px solid var(--line)}
+.modal header h3{margin:0;font-size:16px}
+.modal .close{margin-left:auto;inline-size:36px;block-size:36px;border:none;border-radius:10px;background:#222;color:var(--text);font-size:18px;cursor:pointer}
+.modal section{padding:.8rem}
+
+.settings label{display:block;margin:.6rem 0}
+.settings .units{display:flex;gap:1rem;opacity:.9}
+
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:.5rem}
+.kbd{height:44px;border:1px solid var(--line);border-radius:10px;background:#141820;font-size:18px}
+
+@media (max-width:900px){
+  .layout{grid-template-columns:56px 1fr}
+}
